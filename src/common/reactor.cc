@@ -20,8 +20,16 @@
 #include <unordered_map>
 #include <vector>
 
-#include <pistache/pist_timelog.h>
 #include <pistache/pist_quote.h>
+#include <pistache/pist_timelog.h>
+
+#ifdef _IS_BSD
+// For pthread_set_name_np
+#include <pthread.h>
+#ifndef __NetBSD__
+#include <pthread_np.h>
+#endif
+#endif
 
 using namespace std::string_literals;
 
@@ -625,7 +633,11 @@ namespace Pistache::Aio
                 thread = std::thread([=]() {
                     if (!threadsName_.empty())
                     {
+#if defined _IS_BSD && !defined __NetBSD__
+                        pthread_set_name_np(
+#else
                         pthread_setname_np(
+#endif
 #ifndef __APPLE__
                             // Apple's macOS version of pthread_setname_np
                             // takes only "const char * name" as parm
@@ -638,7 +650,12 @@ namespace Pistache::Aio
                             // behaves as per Linux
                             pthread_self(),
 #endif
-                            threadsName_.substr(0, 15).c_str());
+#ifdef __NetBSD__
+                            "%s", // NetBSD has 3 parms for pthread_setname_np
+                            (void*)/*cast away const for NetBSD*/
+#endif
+                            threadsName_.substr(0, 15)
+                                .c_str());
                     }
                     sync->run();
                 });

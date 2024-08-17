@@ -18,6 +18,7 @@ pistache_common_src = [
         'common'/'pist_check.cc',
         'common'/'pist_syslog.cc',
         'common'/'pist_timelog.cc',
+        'common'/'ps_strl.cc',        
 	'common'/'reactor.cc',
 	'common'/'stream.cc',
 	'common'/'string_logger.cc',
@@ -76,7 +77,8 @@ libpistache = library(
 pistache_dep = declare_dependency(
 	compile_args: public_args,
 	include_directories: incl_pistache,
-	link_with: libpistache
+	link_with: libpistache,
+	dependencies: [ rapidjson_dep ]
 )
 
 if meson.version().version_compare('>=0.54.0')

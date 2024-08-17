@@ -411,10 +411,10 @@ namespace Pistache::Http::Experimental
         PST_SSIZE_T totalWritten = 0;
         for (;;)
         {
-            const char* data           = buffer.data() + totalWritten;
+            const char* data               = buffer.data() + totalWritten;
             const PST_SSIZE_T len          = buffer.size() - totalWritten;
             const PST_SSIZE_T bytesWritten = ::send(GET_ACTUAL_FD(fd), data,
-                                                len, 0);
+                                                    len, 0);
             if (bytesWritten < 0)
             {
                 if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -492,18 +492,19 @@ namespace Pistache::Http::Experimental
             PS_LOG_DEBUG_ARGS("Calling ::connect fs %d", GET_ACTUAL_FD(fd));
 
             int res = ::connect(GET_ACTUAL_FD(fd), data->getAddr(), data->addr_len);
-            if (res == -1)
+            PS_LOG_DEBUG_ARGS("::connect res %d, errno on fail %d (%s)",
+                              res, (res < 0) ? errno : 0,
+                              (res < 0) ? strerror(errno) : "success");
+
+            if ((res == 0) || ((res == -1) && (errno == EINPROGRESS)))
             {
-                if (errno == EINPROGRESS)
-                {
-                    reactor()->registerFdOneShot(key(), fd,
-                                                 NotifyOn::Write | NotifyOn::Hangup | NotifyOn::Shutdown);
-                }
-                else
-                {
-                    data->reject(Error::system("Failed to connect"));
-                    continue;
-                }
+                reactor()->registerFdOneShot(key(), fd,
+                                             NotifyOn::Write | NotifyOn::Hangup | NotifyOn::Shutdown);
+            }
+            else
+            {
+                data->reject(Error::system("Failed to connect"));
+                continue;
             }
             connections.insert(std::make_pair(fd, std::move(*data)));
         }
@@ -647,12 +648,12 @@ namespace Pistache::Http::Experimental
                 break; // can happen if fd was closed meanwhile
 
             const PST_SSIZE_T bytes = recv(GET_ACTUAL_FD(conn_fd),
-                                       buffer, Const::MaxBuffer, 0);
+                                           buffer, Const::MaxBuffer, 0);
             if (bytes == -1)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
                 {
-                    char se_err[256+16];
+                    char se_err[256 + 16];
                     PST_STRERROR_R(errno, &se_err[0], 256);
                     connection->handleError(&se_err[0]);
                 }

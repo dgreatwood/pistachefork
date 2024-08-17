@@ -202,12 +202,15 @@ namespace Pistache::Tcp
 
         if (options.hasFlag(Options::ReuseAddr))
         {
+            PS_LOG_DEBUG("Set SO_REUSEADDR");
+
             int one = 1;
             TRY(::setsockopt(actualFd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)));
         }
 
         if (options.hasFlag(Options::ReusePort))
         {
+            PS_LOG_DEBUG("Set SO_REUSEPORT");
             int one = 1;
             TRY(::setsockopt(actualFd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)));
         }
@@ -458,7 +461,7 @@ namespace Pistache::Tcp
         //
         if (!found)
         {
-            char se_err[256+16];
+            char se_err[256 + 16];
             PST_STRERROR_R(errno, &se_err[0], 256);
             throw std::runtime_error(&se_err[0]);
         }
@@ -677,7 +680,7 @@ namespace Pistache::Tcp
 
                 struct timeval timeout;
 
-                timeout.tv_sec = (PST_TIMEVAL_S_T) std::chrono::duration_cast<std::chrono::seconds>(sslHandshakeTimeout_).count();
+                timeout.tv_sec = (PST_TIMEVAL_S_T)std::chrono::duration_cast<std::chrono::seconds>(sslHandshakeTimeout_).count();
 
                 const auto residual_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(sslHandshakeTimeout_) - std::chrono::duration_cast<std::chrono::seconds>(sslHandshakeTimeout_);
                 timeout.tv_usec                  = (PST_SUSECONDS_T)(residual_microseconds.count());
@@ -831,9 +834,9 @@ namespace Pistache::Tcp
 
         if (client_actual_fd < 0)
         {
-            char se_err[256+16];
+            char se_err[256 + 16];
             PST_STRERROR_R(errno, &se_err[0], 256);
-            
+
             if (errno == EBADF || errno == ENOTSOCK)
                 throw ServerError(&se_err[0]);
             else
@@ -849,9 +852,9 @@ namespace Pistache::Tcp
         int fcntl_res = fcntl(client_actual_fd, F_SETFD, FD_CLOEXEC);
         if (fcntl_res == -1)
         {
-            char se_err[256+16];
+            char se_err[256 + 16];
             PST_STRERROR_R(errno, &se_err[0], 256);
-            
+
             PS_LOG_DEBUG_ARGS("fcntl F_SETFD fail for fd %d, errno %d %s",
                               client_actual_fd, errno, &se_err[0]);
 
@@ -864,9 +867,9 @@ namespace Pistache::Tcp
         fcntl_res = fcntl(client_actual_fd, F_SETFL, 0 /*clear everything*/);
         if (fcntl_res == -1)
         {
-            char se_err[256+16];
+            char se_err[256 + 16];
             PST_STRERROR_R(errno, &se_err[0], 256);
-            
+
             PS_LOG_DEBUG_ARGS("fcntl F_SETFL fail for fd %d, errno %d %s",
                               client_actual_fd, errno, &se_err[0]);
 
@@ -886,8 +889,39 @@ namespace Pistache::Tcp
     {
         PS_TIMEDBG_START_THIS;
 
+        if (!peer)
+        {
+            PS_LOG_DEBUG("Null peer");
+            return;
+        }
+
+        // There is some risk that the Fd belonging to the peer could be closed
+        // in another thread before this dispatchPeer routine completes. In
+        // particular, that has been seen to happen occasionally in
+        // rest_server_test.response_status_code_test in OpenBSD.
+        //
+        // To guard against that, we simply need to check for an invalid Fd. We
+        // also check for an invalid actual-fd for safety's sake.
+
+        int actual_fd = -1;
+        try
+        {
+            actual_fd = peer->actualFd();
+        }
+        catch (...)
+        {
+            PS_LOG_INFO_ARGS("Failed to get actual fd from peer %p",
+                             peer.get());
+            return;
+        }
+        if (actual_fd == -1)
+        {
+            PS_LOG_INFO_ARGS("No actual fd for peer %p", peer.get());
+            return;
+        }
+
         auto handlers  = reactor_->handlers(transportKey);
-        auto idx       = (GET_ACTUAL_FD(peer->fd())) % handlers.size();
+        auto idx       = actual_fd % handlers.size();
         auto transport = std::static_pointer_cast<Transport>(handlers[idx]);
 
         transport->handleNewPeer(peer);

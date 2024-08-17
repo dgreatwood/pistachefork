@@ -11,7 +11,6 @@
 #include PIST_QUOTE(PST_NETDB_HDR)
 #include PIST_QUOTE(PST_NETINET_IN_HDR)
 
-
 #include <errno.h>
 #include <stdlib.h>
 #include PIST_QUOTE(PST_SOCKET_HDR)
@@ -25,6 +24,11 @@
 #include <pistache/endpoint.h>
 #include <pistache/http.h>
 #include <pistache/listener.h>
+
+#ifdef _IS_BSD
+#include <sys/wait.h> // for wait
+#endif
+
 class SocketWrapper
 {
 
@@ -81,48 +85,57 @@ public:
 /*
  * Will try to get a free port by binding port 0.
  */
-SocketWrapper bind_free_port()
+SocketWrapper bind_free_port_helper(int ai_family)
 {
     PS_TIMEDBG_START;
 
-    int sockfd; // listen on sock_fd, new connection on new_fd
+    int sockfd            = -1; // listen on sock_fd, new connection on new_fd
     struct addrinfo hints = {}, *servinfo, *p;
 
     int yes = 1;
     int rv;
 
-    hints.ai_family   = AF_UNSPEC;
+    hints.ai_family   = ai_family;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags    = AI_PASSIVE; // use my IP
 
     if ((rv = getaddrinfo(nullptr, "0", &hints, &servinfo)) != 0)
     {
-        std::cerr << "getaddrinfo: " << gai_strerror(rv) << "\n";
-        exit(1);
+        if (ai_family == AF_UNSPEC)
+        {
+            std::cerr << "getaddrinfo: " << gai_strerror(rv) << "\n";
+            exit(1);
+        }
+        throw std::runtime_error("getaddrinfo fail");
     }
 
-    // loop through all the results and bind to the first we can
     for (p = servinfo; p != nullptr; p = p->ai_next)
     {
         if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
         {
             PS_LOG_DEBUG("server: socket");
-            perror("server: socket");
+            if (ai_family == AF_UNSPEC)
+                perror("server: socket");
             continue;
         }
 
         if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
         {
             PS_LOG_DEBUG("setsockopt");
-            perror("setsockopt");
-            exit(1);
+            if (ai_family == AF_UNSPEC)
+            {
+                perror("setsockopt");
+                exit(1);
+            }
+            throw std::runtime_error("setsockopt fail");
         }
 
         if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1)
         {
             PS_LOG_DEBUG_ARGS("server: bind failed, sockfd %d", sockfd);
             close(sockfd);
-            perror("server: bind");
+            if (ai_family == AF_UNSPEC)
+                perror("server: bind");
             continue;
         }
 
@@ -131,12 +144,39 @@ SocketWrapper bind_free_port()
 
     freeaddrinfo(servinfo); // all done with this structure
 
-    if (p == nullptr)
+    if (ai_family == AF_UNSPEC)
     {
-        fprintf(stderr, "server: failed to bind\n");
-        exit(1);
+        if (p == nullptr)
+        {
+            fprintf(stderr, "server: failed to bind\n");
+            exit(1);
+        }
+        throw std::runtime_error("failed to bind");
     }
+
     return SocketWrapper(sockfd);
+}
+
+/*
+ * Will try to get a free port by binding port 0.
+ */
+SocketWrapper bind_free_port()
+{
+    // As of July/2024, in Linux and macOS, using AF_UNSPEC leads us to use
+    // IPv4 when available. However, in FreeBSD, it causes us to use IPv6 when
+    // available. Since Pistache itself defaults to IPv4, we try IPv4 first for
+    // bind_free_port_helper, and only try AF_UNSPEC if IPv4 fails.
+
+    try
+    {
+        return (bind_free_port_helper(AF_INET /*IPv4*/));
+    }
+    catch (...)
+    {
+        PS_LOG_DEBUG("bind_free_port_helper failed for IPv4");
+    }
+
+    return (bind_free_port_helper(AF_UNSPEC /*any*/));
 }
 
 // This is just done to get the value of a free port. The socket will be
@@ -227,6 +267,8 @@ TEST(listener_test, listener_bind_port_not_free_throw_runtime)
         PS_TIMEDBG_START;
 
         std::cout << err.what() << std::endl;
+        PS_LOG_DEBUG_ARGS("err.what %s", err.what());
+
         int flag = 0;
         // GNU libc
         if (strncmp(err.what(), "Address already in use",
@@ -364,7 +406,7 @@ public:
             // Assign result of std::system to suppress Linux warning:
             //   warning: ignoring return value of ‘int system(const char*)’
             //   declared with attribute ‘warn_unused_result’ [-Wunused-result]
-            
+
             exit(0);
         }
 

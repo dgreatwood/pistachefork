@@ -12,8 +12,9 @@ install_headers(
 	'config.h',
 	'cookie.h',
 	'description.h',
+	'emosandlibevdefs.h',
 	'endpoint.h',
-        'eventmeth.h',
+	'eventmeth.h',
 	'errors.h',
 	'flags.h',
 	'http_defs.h',
@@ -30,10 +31,11 @@ install_headers(
 	'os.h',
 	'peer.h',
 	'pist_quote.h',
-        'pist_check.h',
-        'pist_syslog.h',
+	'pist_check.h',
+	'pist_syslog.h',
 	'prototype.h',
-        'pist_timelog.h',
+	'pist_timelog.h',
+	'ps_strl.h',        
 	'reactor.h',
 	'route_bind.h',
 	'router.h',
@@ -47,6 +49,7 @@ install_headers(
 	'typeid.h',
 	'utils.h',
 	'view.h',
+	'winornix.h',
 	subdir: 'pistache')
 
 if get_option('PISTACHE_USE_RAPIDJSON')

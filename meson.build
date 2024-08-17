@@ -21,8 +21,8 @@ fs = import('fs')
 
 #macOS host_machine.system() is 'darwin'
 
-if host_machine.system() != 'linux' and host_machine.system() != 'darwin' and host_machine.system() != 'windows'
-	error('Pistache currenly only supports Linux, macOS and Windows.')
+if host_machine.system() != 'linux' and host_machine.system() != 'darwin' and host_machine.system() != 'windows' and not host_machine.system().endswith('bsd')
+	error('Pistache currenly only supports Linux, macOS, Free/Open/NetBSD and Windows.')
 endif
 
 compiler = meson.get_compiler('cpp')
@@ -56,7 +56,8 @@ deps_libpistache = [
 ]
 
 if get_option('PISTACHE_USE_RAPIDJSON')
-	deps_libpistache += dependency('RapidJSON', fallback: ['rapidjson', 'rapidjson_dep'])
+	rapidjson_dep = dependency('RapidJSON', fallback: ['rapidjson', 'rapidjson_dep'])
+	deps_libpistache += rapidjson_dep
 endif
 
 # Support Brotli compressed Content-Encoding responses...
@@ -132,7 +133,7 @@ if get_option('PISTACHE_USE_SSL')
 	deps_libpistache += dependency('openssl')
 endif
 
-if host_machine.system() == 'darwin' or host_machine.system() == 'windows' or get_option('PISTACHE_FORCE_LIBEVENT')
+if host_machine.system() == 'darwin' or host_machine.system() == 'windows' or host_machine.system().endswith('bsd') or get_option('PISTACHE_FORCE_LIBEVENT')
 	deps_libpistache += dependency('libevent')
         if (not (host_machine.system() == 'windows'))
                 # It looks like libevent assumes windows threads in
@@ -140,6 +141,12 @@ if host_machine.system() == 'darwin' or host_machine.system() == 'windows' or ge
                 # is not built on windows
                 deps_libpistache += dependency('libevent_pthreads')
         endif
+endif
+
+if host_machine.system().endswith('bsd')
+        # libexecinfo is included for the 'backtrace' function
+        libexecinfo_dep = compiler.find_library('execinfo')
+        deps_libpistache += libexecinfo_dep
 endif
 
 version_array = []

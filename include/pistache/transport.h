@@ -12,12 +12,13 @@
 
 #pragma once
 
+#include <pistache/pist_quote.h>
 #include <pistache/winornix.h>
 
 #include PIST_QUOTE(PST_SYS_RESOURCE_HDR) // for PST_RUSAGE + PST_GETRUSAGE
 
 #include <pistache/pist_timelog.h>
-#include <pistache/pist_quote.h>
+
 #include <pistache/async.h>
 #include <pistache/mailbox.h>
 #include <pistache/reactor.h>
@@ -56,15 +57,18 @@ namespace Pistache::Tcp
 
         template <typename Buf>
         Async::Promise<PST_SSIZE_T> asyncWrite(Fd fd, const Buf& buffer,
-                                           int flags = 0
+                                               int flags = 0
 #ifdef _USE_LIBEVENT_LIKE_APPLE
-                                           ,
-                                           bool msg_more_style = false
+                                               ,
+                                               bool msg_more_style = false
 #endif
         )
         {
-            // Always enqueue reponses for sending. Giving preference to consumer
-            // context means chunked responses could be sent out of order.
+            // Always enqueue reponses for sending. Giving preference to
+            // consumer context means chunked responses could be sent out of
+            // order.
+            //
+            // Note: fd could be PS_FD_EMPTY
             return Async::Promise<PST_SSIZE_T>(
                 [=](Async::Deferred<PST_SSIZE_T> deferred) mutable {
                     BufferHolder holder { buffer };
@@ -113,6 +117,8 @@ namespace Pistache::Tcp
             return (epoll_fd);
         }
 #endif
+
+        void closeFd(Fd fd);
 
         // !!!! Make protected like removePeer
         void removeAllPeers(); // cleans up toWrite and does CLOSE_FD on each
@@ -311,8 +317,8 @@ namespace Pistache::Tcp
 
         PST_SSIZE_T sendRawBuffer(Fd fd, const char* buffer, size_t len, int flags
 #ifdef _USE_LIBEVENT_LIKE_APPLE
-                              ,
-                              bool msg_more_style
+                                  ,
+                                  bool msg_more_style
 #endif
         );
         PST_SSIZE_T sendFile(Fd fd, int file, off_t offset, size_t len);

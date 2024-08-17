@@ -30,7 +30,9 @@
 
 // ---------------------------------------------------------------------------
 
+#include <pistache/emosandlibevdefs.h> // For _IS_BSD
 #include <pistache/pist_syslog.h>
+#include <pistache/ps_strl.h>
 
 #ifdef DEBUG
 #define PS_TIMINGS_DBG 1
@@ -194,7 +196,7 @@ private:
             {
                 for(unsigned int i=0; i<10; i++)
                     marker_chars[i] = the_marker;
-                strcpy(&(marker_chars[10]), "...");
+                PS_STRLCPY(&(marker_chars[10]), "...", 4);
 
                 marker_chars += (10 + 3);
                 for(unsigned int i=0; i<10; i++)
@@ -269,7 +271,7 @@ public:
             va_end(ap);
 
             if (ln >= ((int) sizeof_buf))
-                strcat(buf_ptr, "...");
+                PS_STRLCAT(buf_ptr, "...", 5);
 
             return(buf_ptr);
         }
