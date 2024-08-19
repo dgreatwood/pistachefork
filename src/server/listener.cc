@@ -462,8 +462,8 @@ namespace Pistache::Tcp
         if (!found)
         {
             char se_err[256 + 16];
-            PST_STRERROR_R(errno, &se_err[0], 256);
-            throw std::runtime_error(&se_err[0]);
+            throw std::runtime_error(PST_STRERROR_R(errno, &se_err[0], 256));
+            // !!!!!!!! repeat this pattern wherever  PST_STRERROR_R is used
         }
     }
 
@@ -835,12 +835,11 @@ namespace Pistache::Tcp
         if (client_actual_fd < 0)
         {
             char se_err[256 + 16];
-            PST_STRERROR_R(errno, &se_err[0], 256);
 
             if (errno == EBADF || errno == ENOTSOCK)
-                throw ServerError(&se_err[0]);
+                throw ServerError(PST_STRERROR_R(errno, &se_err[0], 256));
             else
-                throw SocketError(&se_err[0]);
+                throw SocketError(PST_STRERROR_R(errno, &se_err[0], 256));
         }
 
         LOG_DEBUG_ACT_FD_AND_FDL_FLAGS(client_actual_fd);
@@ -853,10 +852,10 @@ namespace Pistache::Tcp
         if (fcntl_res == -1)
         {
             char se_err[256 + 16];
-            PST_STRERROR_R(errno, &se_err[0], 256);
 
             PS_LOG_DEBUG_ARGS("fcntl F_SETFD fail for fd %d, errno %d %s",
-                              client_actual_fd, errno, &se_err[0]);
+                              client_actual_fd, errno,
+                              PST_STRERROR_R(errno, &se_err[0], 256));
 
             ::close(client_actual_fd);
             PS_LOG_DEBUG_ARGS("::close actual_fd %d", client_actual_fd);
@@ -868,10 +867,10 @@ namespace Pistache::Tcp
         if (fcntl_res == -1)
         {
             char se_err[256 + 16];
-            PST_STRERROR_R(errno, &se_err[0], 256);
 
             PS_LOG_DEBUG_ARGS("fcntl F_SETFL fail for fd %d, errno %d %s",
-                              client_actual_fd, errno, &se_err[0]);
+                              client_actual_fd, errno,
+                              PST_STRERROR_R(errno, &se_err[0], 256));
 
             ::close(client_actual_fd);
             PS_LOG_DEBUG_ARGS("::close actual_fd %d", client_actual_fd);

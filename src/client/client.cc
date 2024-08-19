@@ -654,8 +654,8 @@ namespace Pistache::Http::Experimental
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
                 {
                     char se_err[256 + 16];
-                    PST_STRERROR_R(errno, &se_err[0], 256);
-                    connection->handleError(&se_err[0]);
+                    connection->handleError(
+                        PST_STRERROR_R(errno, &se_err[0], 256));
                 }
                 break;
             }

@@ -1119,8 +1119,7 @@ namespace Pistache::Http
         if (fd == -1)
         {
             char se_err[256 + 16];
-            PST_STRERROR_R(errno, &se_err[0], 256);
-            std::string str_error(&se_err[0]);
+            std::string str_error(PST_STRERROR_R(errno, &se_err[0], 256));
             if (errno == ENOENT)
             {
                 throw HttpError(Http::Code::Not_Found, std::move(str_error));
