@@ -5,7 +5,7 @@
  */
 
 // Defines a ps_strlcpy and ps_strlcat for OS that do not have strlcpy/strlcat
-// natively, including Windows and (some) Linux
+// natively, including Windows and (some e.g. Ubuntu LTS 22.04) Linux
 //
 // #include <pistache/ps_strl.h>
 
