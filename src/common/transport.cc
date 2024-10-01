@@ -315,8 +315,10 @@ namespace Pistache::Tcp
             }
 #endif /* PISTACHE_USE_SSL */
 
+#ifdef DEBUG
             char se_err[256 + 16];
             se_err[0] = 0;
+#endif
             PS_LOG_DEBUG_ARGS("Fd %" PIST_QUOTE(PS_FD_PRNTFCD) ", "
                                                                "bytes read %d, totalBytes %d, "
                                                                "err %d %s",
