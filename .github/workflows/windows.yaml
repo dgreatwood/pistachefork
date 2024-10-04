@@ -19,7 +19,7 @@ on:
 
 defaults:
   run:
-    shell: powershell.exe
+    shell: powershell
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
