@@ -277,8 +277,20 @@ TEST(rest_server_test, keepalive_multithread_client_request)
     // In practice, we saw ~2200ms delay before the socket connected
     // successfully - Windows 11 running in a VM. So in Windows, this test
     // would fail with a 700ms sleep_for, but succeed with 3500ms.
+    //
+    // Conversely, for macOS if we use 3500ms then the test fails - presumably,
+    // the connect happens so fast that not only has the connect happened but
+    // also the clients connections have timed out and the peers at the server
+    // have all closed again before the EXPECT_EQ(peer.size(), THR_NUMBER) test
+    // below executes.
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(3500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(
+#ifdef _WIN32
+                                    3500
+#else
+                                    700
+#endif
+                                    ));
     
     auto peer = stats.getAllPeer();
     EXPECT_EQ(peer.size(), THR_NUMBER);

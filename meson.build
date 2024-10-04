@@ -175,6 +175,24 @@ if host_machine.system().endswith('bsd')
         deps_libpistache += libexecinfo_dep
 endif
 
+if host_machine.system() != 'windows'
+	# libdl may be required for function dladdr, used in logStackTrace,
+	# which is called by PS_LogWoBreak, used in turn by the stack-trace
+	# logging macro PS_LOG_WO_BREAK_LIMITED and its derivatives. Issue
+	# #1230.
+	# Note: If 'dl' is not available, per Meson it suggests that the
+	# functionality is provided by libc
+	has_dladdr_func = compiler.has_function('dladdr')
+	if not has_dladdr_func
+	  libdl_dep += dependency('dl')
+	  has_dladdr_func = compiler.has_function('dladdr', dependencies: libdl_dep)
+	  if not has_dladdr_func
+	    warning('Unable to find dladdr(), even when trying to link to libdl')
+	  endif
+	  libpistache_deps += libdl_dep
+	endif
+endif
+
 version_array = []
 if meson.version().version_compare('>=0.57.0')
 	version_array = fs.read('version.txt').strip().split('.')

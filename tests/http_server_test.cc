@@ -1023,6 +1023,7 @@ TEST(http_server_test, client_request_timeout_on_delay_in_request_line_send_rais
         const std::string reqStr { "GET /ping HTTP/1.1\r\n" };
         TcpClient client;
         EXPECT_TRUE(client.connect(Pistache::Address("localhost", port))) << client.lastError();
+        bool send_failed = false;
 
         char recvBuf[1024] = {
             0,
@@ -1034,6 +1035,7 @@ TEST(http_server_test, client_request_timeout_on_delay_in_request_line_send_rais
         {
             if (!client.send(reqStr.substr(i, 1)))
             {
+                send_failed = true;
                 break;
             }
 
@@ -1080,6 +1082,11 @@ TEST(http_server_test, client_request_timeout_on_delay_in_request_line_send_rais
 #endif
         }
 
+    if (send_failed)
+    { // Usually, send does fail; but on macOS occasionally it does not fail
+      // We workaround that here, since of course we can only check for an
+      // error code when there is an actual error
+
 #ifdef _WIN32
         if (client.lastErrno() == ECONNABORTED)
             EXPECT_EQ(client.lastErrno(), ECONNABORTED) << "Errno: " << client.lastErrno();
@@ -1093,9 +1100,9 @@ TEST(http_server_test, client_request_timeout_on_delay_in_request_line_send_rais
 #endif
         EXPECT_TRUE(cli_rx_res) << client.lastError();
         EXPECT_EQ(0, strncmp(recvBuf, ExpectedResponseLine, strlen(ExpectedResponseLine)));
+    }
 
-        server.shutdown();
-
+    server.shutdown();
     } // end encapsulate
 
 #ifdef _USE_LIBEVENT_LIKE_APPLE

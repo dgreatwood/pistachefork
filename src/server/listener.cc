@@ -534,7 +534,8 @@ namespace Pistache::Tcp
               // See comment in class Epoll regarding reg_unreg_mutex_
                 PS_TIMEDBG_START;
 
-                std::lock_guard<std::mutex> l_guard(poller.reg_unreg_mutex_);
+                std::mutex& poller_reg_unreg_mutex(poller.reg_unreg_mutex_);
+                GUARD_AND_DBG_LOG(poller_reg_unreg_mutex);
 
                 std::vector<Polling::Event> events;
                 int ready_fds = poller.poll(events);
