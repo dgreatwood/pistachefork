@@ -277,7 +277,9 @@ jobs:
         
         $env:CC=$env:CXX
 
-        (meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG=$env:mtrx_def_debug -DPISTACHE_USE_SSL=$env:mtrx_tls -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize=$env:mtrx_sanitizer -Db_lundef=false) -or (cat build/meson-logs/meson-log.txt; false)
+        meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG=$env:mtrx_def_debug -DPISTACHE_USE_SSL=$env:mtrx_tls -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize=$env:mtrx_sanitizer -Db_lundef=false
+
+        cat build/meson-logs/meson-log.txt
 
     - name: Build
       run: ninja -C build
