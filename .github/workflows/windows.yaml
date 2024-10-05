@@ -55,7 +55,7 @@ jobs:
             $compiler="cl"
         }
         elseif ($env:mtrx_compiler -eq "gcc") {
-            $compiler="g++" # Must put mingw-64 compiler on Path
+            $compiler="g++" # Must put mingw-64 g++ compiler on Path
             
         }
         else { # Use clang with MSVC (MSVC's stdlib etc.)
@@ -105,26 +105,22 @@ jobs:
           
         }
 
-        winget install bloodrock.pkg-config-lite # For pkg-config
+        if (Get-Command winget -errorAction SilentlyContinue)
+        { # winget exists on newer versions of Windows 10 and on
+          # Windows 11 and after. It is is not supported on Windows
+          # Server 2019, and is experimental only on Windows Server
+          # 2022.
         
-        # winget install Python # Already installed
+            winget install bloodrock.pkg-config-lite # For pkg-config
         
-        pip3 install --user meson;
-        if (Test-Path "~/AppData/Local/Packages") {
-          cd "~/AppData/Local/Packages";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |  
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
-          if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
-          $env:Path="$env:Path;$meson_exe_path"
-          };
-          cd ~
-          
+            # winget install Python # Already installed
         }
-
-        winget install "Ninja-build.Ninja";
-        winget install doxygen
-
+        else
+        {
+            vcpkg install pkgconf
+            
+        }
+        
         $old_pkg_config_path=$env:PKG_CONFIG_PATH;
         $env:PKG_CONFIG_PATH="$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig";
         if ($old_pkg_config_path) {
@@ -153,7 +149,62 @@ jobs:
             else {
                 Write-Error "...\vcpkg\installed\...\bin directory not found"
             }
+
+            $vcpkg_installed_pkgconf_dir=Get-ChildItem -Path "pkgconf.exe" -Recurse |
+              Select -ExpandProperty "FullName" | Sort-Object { $_.Length } |
+              Select -Index 0 | Split-Path;
+            if (($vcpkg_installed_pkgconf_dir) -And
+              (Test-Path -Path $vcpkg_installed_pkgconf_dir)) {
+                  $env:Path="$env:Path;$vcpkg_installed_pkgconf_dir"
+                  # Puts pkgconf.exe on the Path
+
+                  if (! (Get-Command pkg-config.exe -errorAction SilentlyContinue))
+                  {
+                      New-Item -ItemType SymbolicLink
+                          -Path "$vcpkg_installed_pkgconf_dir\pkg-config.exe"
+                          -Target "$vcpkg_installed_pkgconf_dir\pkgconf.exe"
+                  }
+            }
+
+            cd ~
         }
+
+        pip3 install --user meson;
+        if (Test-Path "~/AppData/Local/Packages") {
+          cd "~/AppData/Local/Packages";
+          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |  
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
+          if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
+          $env:Path="$env:Path;$meson_exe_path"
+          };
+          cd ~
+          
+        }
+
+        if (Get-Command winget -errorAction SilentlyContinue)
+        { # winget exists on newer versions of Windows 10 and on
+          # Windows 11 and after. It is is not supported on Windows
+          # Server 2019, and is experimental only on Windows Server
+          # 2022.
+        
+            winget install "Ninja-build.Ninja";
+            winget install doxygen
+        }
+        else
+        {
+            vcpkg install vcpkg-tool-ninja;
+
+            if (! (Get-Command doxygen.exe -errorAction SilentlyContinue))
+            {
+                cd ~;
+                Invoke-WebRequest -Uri https://www.doxygen.nl/files/doxygen-1.12.0.windows.x64.bin.zip
+                    -OutFile doxygen.bin.zip;
+                Expand-Archive doxygen.bin.zip -DestinationPath doxygen.bin;
+                $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
+            }
+        }
+
 
         vcpkg install curl[openssl]
         # See https://github.com/openssl/openssl/issues/25520 for now !!!!!!!!
