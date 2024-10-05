@@ -241,7 +241,7 @@ jobs:
 
         vcpkg.exe install date # Howard-Hinnant-Date
 
-        Invoke-WebRequest -Uri https://zlib.net/current/zlib.tar.gz -OutFile zlib.tar.gz -Outfile zlib.tar.gz;
+        Invoke-WebRequest -Uri https://zlib.net/current/zlib.tar.gz -OutFile zlib.tar.gz;
         tar -xvzf .\zlib.tar.gz;
         cd "zlib*" # Adjusts to whatever we downloaded, e.g. zlib-1.3.1
         
