@@ -200,7 +200,7 @@ jobs:
         }
         else
         {
-            vcpkg install vcpkg-tool-ninja;
+            vcpkg install vcpkg-tool-ninja
 
             if (! (Get-Command doxygen.exe -errorAction SilentlyContinue))
             {
