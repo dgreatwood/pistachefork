@@ -63,6 +63,10 @@ jobs:
             $compiler="clang-cl"
         }
 
+        if (($env:VCPKG_INSTALLATION_ROOT) -and ($env:VCPKG_ROOT) -and (Test-Path "$env:VCPKG_INSTALLATION_ROOT")) {
+            $env:VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT
+        } # Check this both before and after getting a Visual Studio Developer Prompt
+
         # Start a Visual Studio Developer Prompt
         # As at Aug-2024, VS 2022, Launch-VsDevShell.ps1 defaults to
         # 32-bit host and target architectures. However you can specify
@@ -104,6 +108,11 @@ jobs:
           cd ~
           
         }
+
+        if (($env:VCPKG_INSTALLATION_ROOT) -and ($env:VCPKG_ROOT) -and (Test-Path "$env:VCPKG_INSTALLATION_ROOT")) {
+            $env:VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT
+        } # Check this both before and after getting a Visual Studio Developer Prompt
+        
 
         if (Get-Command winget -errorAction SilentlyContinue)
         { # winget exists on newer versions of Windows 10 and on
@@ -160,9 +169,7 @@ jobs:
 
                   if (! (Get-Command pkg-config.exe -errorAction SilentlyContinue))
                   {
-                      New-Item -ItemType SymbolicLink
-                          -Path "$vcpkg_installed_pkgconf_dir\pkg-config.exe"
-                          -Target "$vcpkg_installed_pkgconf_dir\pkgconf.exe"
+                      New-Item -ItemType SymbolicLink -Path "$vcpkg_installed_pkgconf_dir\pkg-config.exe" -Target "$vcpkg_installed_pkgconf_dir\pkgconf.exe"
                   }
             }
 
