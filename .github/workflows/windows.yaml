@@ -256,15 +256,28 @@ jobs:
         submodules: true
 
     - name: Configure Meson
-      run: |
-        if [ ${{ matrix.compiler }} = msvc ]; then CXX=cl; else if [ ${{ matrix.compiler }} = gcc ]; then CXX=g++; else CXX=clang++; fi; fi
-        export CXX
-        meson setup build \
-          -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG=${{ matrix.def_debug }} -DPISTACHE_USE_SSL=${{ matrix.tls }} -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true \
-          --buildtype=debug -Db_coverage=true -Db_sanitize=${{ matrix.sanitizer }} -Db_lundef=false \
-          || (cat build/meson-logs/meson-log.txt ; false)
       env:
-        CC: ${{ matrix.compiler }}
+        mtrx_compiler: ${{ matrix.compiler }}
+        mtrx_def_debug: ${{ matrix.def_debug }}
+        mtrx_tls: ${{ matrix.tls }}
+        mtrx_sanitizer: ${{ matrix.sanitizer }}
+      run: >
+        if ($env:mtrx_compiler -eq "msvc") {
+            $env:CXX="cl"
+        }
+        elseif ($env:mtrx_compiler -eq "gcc") {
+            $env:CXX="g++" # Must put mingw-64 g++ compiler on Path
+            
+        }
+        else { # Use clang with MSVC (MSVC's stdlib etc.)
+
+            $env:CXX="clang-cl";
+            $env:CXX_LD="lld" # !!!!!!!! Should we be setting CXX_LD for Windows?
+        }
+        
+        $env:CC=$env:CXX
+
+        (meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG=$env:mtrx_def_debug -DPISTACHE_USE_SSL=$env:mtrx_tls -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize=$env:mtrx_sanitizer -Db_lundef=false) -or (cat build/meson-logs/meson-log.txt; false)
 
     - name: Build
       run: ninja -C build
