@@ -48,48 +48,53 @@ jobs:
     steps:
     - name: Install dependencies (Windows)
       if: contains(matrix.os, 'windows')
-      run: >+
+      run: |
         if [ ${{ matrix.compiler }} = msvc ]; then compiler=cl; else if [ ${{ matrix.compiler }} = gcc ]; then compiler=g++; else compiler="clang lld ?exact-name(libclang-rt-dev)"; fi; fi
 
+      run: >
         # Start a Visual Studio Developer Prompt
+        # As at Aug-2024, VS 2022, Launch-VsDevShell.ps1 defaults to
+        # 32-bit host and target architectures. However you can specify
+        # both target architecture (-Arch option, valid values: x86,
+        # amd64, arm, arm64) and host architecture (-HostArch option,
+        # valid values: x86, amd64)
+        #
+        # If we don't do this, then meson will pickup 32-bit as the host
+        # and target architecture. Meanwhile, vcpkg defaults to 64-bit
+        # libraries (since we're on a 64-bit Windows). So then the
+        # linker can't link, because it is trying to link 64-bit vcpkg
+        # libs with our 32-bit object files.
+        #
+        # Ref: https://learn.microsoft.com/en-us/visualstudio/
+        #          ide/reference/command-prompt-powershell?view=vs-2022
+        
         if (Test-Path -Path "C:/Program Files/Microsoft Visual Studio") {
-          cd "C:/Program Files/Microsoft Visual Studio"
+          cd "C:/Program Files/Microsoft Visual Studio";
           $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
           if (($launch_vs_dev_shell_dir) -And (Test-Path -Path $launch_vs_dev_shell_dir)) {
-              cd "$launch_vs_dev_shell_dir"
-              # As at Aug-2024, VS 2022, Launch-VsDevShell.ps1 defaults to
-              # 32-bit host and target architectures. However you can specify
-              # both target architecture (-Arch option, valid values: x86,
-              # amd64, arm, arm64) and host architecture (-HostArch option,
-              # valid values: x86, amd64)
-              #
-              # If we don't do this, then meson will pickup 32-bit as the host
-              # and target architecture. Meanwhile, vcpkg defaults to 64-bit
-              # libraries (since we're on a 64-bit Windows). So then the
-              # linker can't link, because it is trying to link 64-bit vcpkg
-              # libs with our 32-bit object files.
-              #
-              # Ref: https://learn.microsoft.com/en-us/visualstudio/
-              #          ide/reference/command-prompt-powershell?view=vs-2022
+              cd "$launch_vs_dev_shell_dir";
               ./Launch-VsDevShell.ps1 -Arch amd64 -HostArch amd64
-          }
+          };
           cd ~
+          
         }
         elseif (Test-Path -Path "C:/Program Files (x86)/Microsoft Visual Studio") {
-          cd "C:/Program Files (x86)/Microsoft Visual Studio"
+          cd "C:/Program Files (x86)/Microsoft Visual Studio";
           $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
           if (($launch_vs_dev_shell_dir) -And (Test-Path -Path $launch_vs_dev_shell_dir)) {
-              cd "$launch_vs_dev_shell_dir"
+              cd "$launch_vs_dev_shell_dir";
               ./Launch-VsDevShell.ps1 -Arch amd64 -HostArch amd64
+              
           }
           cd ~
+          
         }
 
-        
+        run: |
         winget install bloodrock.pkg-config-lite # For pkg-config
         # winget install Python # Already installed
         
