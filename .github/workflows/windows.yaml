@@ -51,10 +51,10 @@ jobs:
         mtrx_compiler: ${{ matrix.compiler }}
       if: contains(matrix.os, 'windows')
       run: >
-        if ("$env:mtrx_compiler" == "msvc") {
+        if ($env:mtrx_compiler -eq "msvc") {
             $compiler="cl"
         }
-        elseif ("$env:mtrx_compiler" == "gcc") {
+        elseif ($env:mtrx_compiler -eq "gcc") {
             $compiler="g++" # Must put mingw-64 compiler on Path
             
         }
