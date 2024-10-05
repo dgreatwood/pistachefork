@@ -51,7 +51,7 @@ jobs:
       run: |
         if [ ${{ matrix.compiler }} = msvc ]; then compiler=cl; else if [ ${{ matrix.compiler }} = gcc ]; then compiler=g++; else compiler="clang lld ?exact-name(libclang-rt-dev)"; fi; fi
 
-      run: >
+      run2: >
         # Start a Visual Studio Developer Prompt
         # As at Aug-2024, VS 2022, Launch-VsDevShell.ps1 defaults to
         # 32-bit host and target architectures. However you can specify
@@ -94,7 +94,7 @@ jobs:
           
         }
 
-        run2: |
+        run3: |
         winget install bloodrock.pkg-config-lite # For pkg-config
         # winget install Python # Already installed
         
