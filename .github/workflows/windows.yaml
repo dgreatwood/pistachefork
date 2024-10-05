@@ -94,7 +94,7 @@ jobs:
           
         }
 
-        run: |
+        run2: |
         winget install bloodrock.pkg-config-lite # For pkg-config
         # winget install Python # Already installed
         
