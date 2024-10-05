@@ -47,9 +47,21 @@ jobs:
 
     steps:
     - name: Install dependencies (Windows)
+      env:
+        mtrx_compiler: ${{ matrix.compiler }}
       if: contains(matrix.os, 'windows')
       run: >
-        if [ ${{ matrix.compiler }} = msvc ]; then compiler=cl; else if [ ${{ matrix.compiler }} = gcc ]; then compiler=g++; else compiler="clang lld ?exact-name(libclang-rt-dev)"; fi; fi
+        if ("$env:mtrx_compiler" == "msvc") {
+            $compiler="cl"
+        }
+        elseif ("$env:mtrx_compiler" == "gcc") {
+            $compiler="g++" # Must put mingw-64 compiler on Path
+            
+        }
+        else { # Use clang with MSVC (MSVC's stdlib etc.)
+
+            $compiler="clang-cl"
+        }
 
         # Start a Visual Studio Developer Prompt
         # As at Aug-2024, VS 2022, Launch-VsDevShell.ps1 defaults to
