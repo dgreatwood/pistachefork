@@ -48,10 +48,9 @@ jobs:
     steps:
     - name: Install dependencies (Windows)
       if: contains(matrix.os, 'windows')
-      run: |
+      run: >
         if [ ${{ matrix.compiler }} = msvc ]; then compiler=cl; else if [ ${{ matrix.compiler }} = gcc ]; then compiler=g++; else compiler="clang lld ?exact-name(libclang-rt-dev)"; fi; fi
 
-      run2: >
         # Start a Visual Studio Developer Prompt
         # As at Aug-2024, VS 2022, Launch-VsDevShell.ps1 defaults to
         # 32-bit host and target architectures. However you can specify
@@ -94,20 +93,20 @@ jobs:
           
         }
 
-        run3: |
         winget install bloodrock.pkg-config-lite # For pkg-config
         # winget install Python # Already installed
         
         pip3 install --user meson
         if (Test-Path "~/AppData/Local/Packages") {
-          cd "~/AppData/Local/Packages"
+          cd "~/AppData/Local/Packages";
           $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |  
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
           if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
           $env:Path="$env:Path;$meson_exe_path"
-          }
+          };
           cd ~
+          
         }
 
         winget install "Ninja-build.Ninja"
