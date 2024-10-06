@@ -200,10 +200,12 @@ jobs:
         }
 
         if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
-            $env:Path="$env:Path;$meson_exe_path"
+            # $env:Path="$env:Path;$meson_exe_path" # !!!!!!!! remove
+            
+            $global:gb_meson_exe_path=$meson_exe_path
         }
         else {
-            Write-Host "WARNING: meson.exe directory not added to path"
+            Write-Host "WARNING: meson.exe directory not found"
         }
 
         cd ~
@@ -295,6 +297,13 @@ jobs:
         }
         
         $env:CC=$env:CXX
+
+        if (($global:gb_meson_exe_path) -And (Test-Path -Path $global:gb_meson_exe_path)) {
+            $env:Path="$env:Path;$global:gb_meson_exe_path"
+        }
+        else {
+            Write-Host "WARNING: meson.exe directory not added to path"
+        }
 
         meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG=$env:mtrx_def_debug -DPISTACHE_USE_SSL=$env:mtrx_tls -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize=$env:mtrx_sanitizer -Db_lundef=false
 
