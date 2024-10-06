@@ -149,7 +149,7 @@ jobs:
               Select -Index 0;
             if (($vcpkg_installed_bin_dir) -And
               (Test-Path -Path $vcpkg_installed_bin_dir)) {
-                  $env:Path="$env:Path;$vcpkg_installed_bin_dir"
+                  $env:Path="$vcpkg_installed_bin_dir;$env:Path"
             }
             else {
                 Write-Error "...\vcpkg\installed\...\bin directory not found"
@@ -160,7 +160,7 @@ jobs:
               Select -Index 0 | Split-Path;
             if (($vcpkg_installed_pkgconf_dir) -And
               (Test-Path -Path $vcpkg_installed_pkgconf_dir)) {
-                  $env:Path="$env:Path;$vcpkg_installed_pkgconf_dir"
+                  $env:Path="$vcpkg_installed_pkgconf_dir;$env:Path"
                   # Puts pkgconf.exe on the Path
 
                   if (! (Get-Command pkg-config.exe -errorAction SilentlyContinue))
@@ -326,6 +326,13 @@ jobs:
             $env:PKG_CONFIG_PATH="$env:PKG_CONFIG_PATH;$old_pkg_config_path"
         }
 
+        # For pkg-config, we put the path segment for pkg-config.exe
+        # at the head of the path, so meson finds our installed
+        # pkg-config; whereas otherwise meson seems to find
+        # C:\Strawberry\perl\bin\pkg-config.BAT first, and then meson
+        # says "but it is Strawberry Perl and thus
+        # broken. Ignoring...".
+
         if (($env:VCPKG_INSTALLATION_ROOT) -And
             (Test-Path -Path "$env:VCPKG_INSTALLATION_ROOT\installed")) {
             # We add the ...\vcpkg\installed\...\bin directory to the
@@ -343,7 +350,7 @@ jobs:
               Select -Index 0;
             if (($vcpkg_installed_bin_dir) -And
               (Test-Path -Path $vcpkg_installed_bin_dir)) {
-                  $env:Path="$env:Path;$vcpkg_installed_bin_dir"
+                  $env:Path="$vcpkg_installed_bin_dir;$env:Path"
             }
             else {
                 Write-Error "...\vcpkg\installed\...\bin directory not found"
@@ -354,7 +361,7 @@ jobs:
               Select -Index 0 | Split-Path;
             if (($vcpkg_installed_pkgconf_dir) -And
               (Test-Path -Path $vcpkg_installed_pkgconf_dir)) {
-                  $env:Path="$env:Path;$vcpkg_installed_pkgconf_dir"
+                  $env:Path="$vcpkg_installed_pkgconf_dir;$env:Path"
                   # Puts pkgconf.exe on the Path
 
                 # We don't need to create the symbolic link for
@@ -378,7 +385,7 @@ jobs:
             cd "$savedpwd"
         }
 
-        Write-Host "env:VCPKG_INSTALLATION_ROOT is $env:VCPKG_INSTALLATION_ROOT"
+        Write-Host "env:VCPKG_INSTALLATION_ROOT is $env:VCPKG_INSTALLATION_ROOT";
         Write-Host "env:path is $env:path";
         Write-Host "env:PKG_CONFIG_PATH is $env:PKG_CONFIG_PATH"
 
