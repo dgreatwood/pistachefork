@@ -176,7 +176,8 @@ jobs:
             cd ~
         }
 
-        pip3 install --user meson;
+        pip3 install --user meson
+        
         if (Test-Path "~/AppData/Local/Packages") {
           cd "~/AppData/Local/Packages";
           $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
@@ -185,9 +186,27 @@ jobs:
           if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
           $env:Path="$env:Path;$meson_exe_path"
           };
-          cd ~
-          
         }
+        elseif (Test-Path "~/AppData/Roaming/Python") {
+          cd "~/AppData/Roaming/Python";
+          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
+          if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
+          $env:Path="$env:Path;$meson_exe_path"
+          };
+        }
+        elseif (Test-Path "~/AppData") {
+          cd "~/AppData";
+          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
+          if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
+          $env:Path="$env:Path;$meson_exe_path"
+          };
+        }
+
+        cd ~
 
         if (Get-Command winget -errorAction SilentlyContinue)
         { # winget exists on newer versions of Windows 10 and on
