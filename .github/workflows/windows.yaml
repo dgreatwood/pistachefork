@@ -298,6 +298,32 @@ jobs:
 
         cd "$savedpwd"
 
+        # Start a Visual Studio Developer Prompt, gives access to compiler "cl"
+
+        if (Test-Path -Path "C:/Program Files/Microsoft Visual Studio") {
+          cd "C:/Program Files/Microsoft Visual Studio";
+          $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
+          if (($launch_vs_dev_shell_dir) -And (Test-Path -Path $launch_vs_dev_shell_dir)) {
+              cd "$launch_vs_dev_shell_dir";
+              ./Launch-VsDevShell.ps1 -Arch amd64 -HostArch amd64
+          };
+        }
+        elseif (Test-Path -Path "C:/Program Files (x86)/Microsoft Visual Studio") {
+          cd "C:/Program Files (x86)/Microsoft Visual Studio";
+          $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
+          if (($launch_vs_dev_shell_dir) -And (Test-Path -Path $launch_vs_dev_shell_dir)) {
+              cd "$launch_vs_dev_shell_dir";
+              ./Launch-VsDevShell.ps1 -Arch amd64 -HostArch amd64
+              
+          }
+        }
+
+        cd "$savedpwd"
+
         meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG="$env:mtrx_def_debug" -DPISTACHE_USE_SSL="$env:mtrx_tls" -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize="$env:mtrx_sanitizer" -Db_lundef=false
 
         if (Test-Path -Path 'build/meson-logs/meson-log.txt') {
