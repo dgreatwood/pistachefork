@@ -184,13 +184,15 @@ jobs:
               Sort-Object -Descending -Property LastWriteTime |  
               Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
         }
-        elseif (Test-Path "~/AppData/Roaming/Python") {
+
+        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python") {
           cd "~/AppData/Roaming/Python";
           $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |
               Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
         }
-        elseif (Test-Path "~/AppData") {
+
+	if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData")) {
           cd "~/AppData";
           $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |
@@ -201,7 +203,7 @@ jobs:
             $env:Path="$env:Path;$meson_exe_path"
         }
         else {
-            Write-Host "WARNING: meson.exe not added to path"
+            Write-Host "WARNING: meson.exe directory not added to path"
         }
 
         cd ~
