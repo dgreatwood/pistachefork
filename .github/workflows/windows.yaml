@@ -185,7 +185,7 @@ jobs:
               Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
         }
 
-        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python") {
+        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python")) {
           cd "~/AppData/Roaming/Python";
           $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |
