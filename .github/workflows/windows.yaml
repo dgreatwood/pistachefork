@@ -138,11 +138,7 @@ jobs:
         
         if (($env:VCPKG_INSTALLATION_ROOT) -And
             (Test-Path -Path "$env:VCPKG_INSTALLATION_ROOT\installed")) {
-            # We add the ...\vcpkg\installed\...\bin directory to the
-            # path. Not only does this mean that executables can be executed
-            # from that directory, it also allows DLLS to be loaded from that
-            # bin directory (since Windows DLL loader checks path), notably
-            # event_core.dll from libevent.
+            # We add the ...\vcpkg\installed\...\bin dir to the path
     
             cd "$env:VCPKG_INSTALLATION_ROOT\installed"
             # Find ...\installed\...\bin directory. Choose shortest path
@@ -323,6 +319,51 @@ jobs:
         }
 
         cd "$savedpwd"
+
+        $old_pkg_config_path=$env:PKG_CONFIG_PATH;
+        $env:PKG_CONFIG_PATH="$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig";
+        if ($old_pkg_config_path) {
+            $env:PKG_CONFIG_PATH="$env:PKG_CONFIG_PATH;$old_pkg_config_path"
+        }
+
+        if (($env:VCPKG_INSTALLATION_ROOT) -And
+            (Test-Path -Path "$env:VCPKG_INSTALLATION_ROOT\installed")) {
+            # We add the ...\vcpkg\installed\...\bin directory to the
+            # path. Not only does this mean that executables can be executed
+            # from that directory, it also allows DLLS to be loaded from that
+            # bin directory (since Windows DLL loader checks path), notably
+            # event_core.dll from libevent.
+    
+            cd "$env:VCPKG_INSTALLATION_ROOT\installed"
+            # Find ...\installed\...\bin directory. Choose shortest path
+            # if more than one
+            
+            $vcpkg_installed_bin_dir=Get-ChildItem -Path "bin" -Recurse |
+              Select -ExpandProperty "FullName" | Sort-Object { $_.Length } |
+              Select -Index 0;
+            if (($vcpkg_installed_bin_dir) -And
+              (Test-Path -Path $vcpkg_installed_bin_dir)) {
+                  $env:Path="$env:Path;$vcpkg_installed_bin_dir"
+            }
+            else {
+                Write-Error "...\vcpkg\installed\...\bin directory not found"
+            }
+
+            $vcpkg_installed_pkgconf_dir=Get-ChildItem -Path "pkgconf.exe" -Recurse |
+              Select -ExpandProperty "FullName" | Sort-Object { $_.Length } |
+              Select -Index 0 | Split-Path;
+            if (($vcpkg_installed_pkgconf_dir) -And
+              (Test-Path -Path $vcpkg_installed_pkgconf_dir)) {
+                  $env:Path="$env:Path;$vcpkg_installed_pkgconf_dir"
+                  # Puts pkgconf.exe on the Path
+
+                # We don't need to create the symbolic link for
+                # pkg-config.exe, we did that before
+
+            }
+
+            cd "$savedpwd"
+        }
 
         meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG="$env:mtrx_def_debug" -DPISTACHE_USE_SSL="$env:mtrx_tls" -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize="$env:mtrx_sanitizer" -Db_lundef=false
 
