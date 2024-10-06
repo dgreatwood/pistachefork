@@ -177,38 +177,6 @@ jobs:
         }
 
         pip3 install --user meson
-        
-        if (Test-Path "~/AppData/Local/Packages") {
-          cd "~/AppData/Local/Packages";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |  
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-        }
-
-        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python")) {
-          cd "~/AppData/Roaming/Python";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-        }
-
-        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData")) {
-          cd "~/AppData";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-        }
-
-        if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
-            # $env:Path="$env:Path;$meson_exe_path" # !!!!!!!! remove
-            
-            $global:gb_meson_exe_path=$meson_exe_path
-        }
-        else {
-            Write-Host "WARNING: meson.exe directory not found"
-        }
-
-        cd ~
 
         if (Get-Command winget -errorAction SilentlyContinue)
         { # winget exists on newer versions of Windows 10 and on
@@ -298,12 +266,35 @@ jobs:
         
         $env:CC=$env:CXX
 
-        if (($global:gb_meson_exe_path) -And (Test-Path -Path $global:gb_meson_exe_path)) {
-            $env:Path="$env:Path;$global:gb_meson_exe_path"
+        if (Test-Path "~/AppData/Local/Packages") {
+          cd "~/AppData/Local/Packages";
+          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |  
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+        }
+
+        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python")) {
+          cd "~/AppData/Roaming/Python";
+          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+        }
+
+        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData")) {
+          cd "~/AppData";
+          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+        }
+
+        if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
+            $env:Path="$env:Path;$meson_exe_path"
         }
         else {
             Write-Host "WARNING: meson.exe directory not added to path"
         }
+
+       cd ~
 
         meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG=$env:mtrx_def_debug -DPISTACHE_USE_SSL=$env:mtrx_tls -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize=$env:mtrx_sanitizer -Db_lundef=false
 
