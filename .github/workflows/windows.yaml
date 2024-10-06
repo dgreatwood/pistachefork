@@ -370,9 +370,15 @@ jobs:
                 
                 }
 
+            if (! (Test-Path -Path "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig\libcurl.pc")) {
+                    Write-Host "libcurl.pc not found" # !!!!!!!! Remove
+
+                }
+
             cd "$savedpwd"
         }
 
+        Write-Host "env:VCPKG_INSTALLATION_ROOT is $env:VCPKG_INSTALLATION_ROOT"
         Write-Host "env:path is $env:path";
         Write-Host "env:PKG_CONFIG_PATH is $env:PKG_CONFIG_PATH"
 
