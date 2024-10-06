@@ -298,7 +298,7 @@ jobs:
 
         cd "$savedpwd"
 
-        meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG=$env:mtrx_def_debug -DPISTACHE_USE_SSL=$env:mtrx_tls -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize=$env:mtrx_sanitizer -Db_lundef=false
+        meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG="$env:mtrx_def_debug" -DPISTACHE_USE_SSL="$env:mtrx_tls" -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize="$env:mtrx_sanitizer" -Db_lundef=false
 
         if (Test-Path -Path 'build/meson-logs/meson-log.txt') {
             cat build/meson-logs/meson-log.txt
@@ -308,7 +308,25 @@ jobs:
         }
 
     - name: Build
-      run: ninja -C build
+      env:
+        mtrx_compiler: ${{ matrix.compiler }}
+      run: >
+        if ($env:mtrx_compiler -eq "msvc") {
+            $env:CXX="cl"
+        }
+        elseif ($env:mtrx_compiler -eq "gcc") {
+            $env:CXX="g++" # Must put mingw-64 g++ compiler on Path
+            
+        }
+        else { # Use clang with MSVC (MSVC's stdlib etc.)
+
+            $env:CXX="clang-cl";
+            $env:CXX_LD="lld" # !!!!!!!! Should we be setting CXX_LD for Windows?
+        }
+        
+        $env:CC=$env:CXX
+
+        ninja -C build
 
     - name: Test
       run: meson test -C build --verbose
