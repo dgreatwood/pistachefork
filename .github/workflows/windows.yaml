@@ -360,10 +360,21 @@ jobs:
                 # We don't need to create the symbolic link for
                 # pkg-config.exe, we did that before
 
+                if (! (Test-Path -Path "$vcpkg_installed_pkgconf_dir\pkg-config.exe")) {
+                    Write-Host "pkg-config.exe not found" # !!!!!!!! Remove
+                    
+                }
             }
+            else {
+                Write-Host "pkgconf.exe not found" # !!!!!!!! Remove
+                
+                }
 
             cd "$savedpwd"
         }
+
+        Write-Host "env:path is $env:path";
+        Write-Host "env:PKG_CONFIG_PATH is $env:PKG_CONFIG_PATH"
 
         meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG="$env:mtrx_def_debug" -DPISTACHE_USE_SSL="$env:mtrx_tls" -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize="$env:mtrx_sanitizer" -Db_lundef=false
 
