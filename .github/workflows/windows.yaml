@@ -417,6 +417,56 @@ jobs:
         
         $env:CC=$env:CXX
 
+        $savedpwd=$pwd
+
+        if (! (Get-Command ninja -errorAction SilentlyContinue))
+        {   # First try vcpkg
+
+            if (($env:VCPKG_INSTALLATION_ROOT) -And
+                (Test-Path -Path "$env:VCPKG_INSTALLATION_ROOT\installed")) {
+
+                cd "$env:VCPKG_INSTALLATION_ROOT\installed"
+
+                $vcpkg_installed_ninja_dir=Get-ChildItem -Path "ninja.exe" -Recurse |
+              Select -ExpandProperty "FullName" | Sort-Object { $_.Length } |
+              Select -Index 0 | Split-Path;
+            if (($vcpkg_installed_ninja_dir) -And
+              (Test-Path -Path $vcpkg_installed_ninja_dir)) {
+                  $env:Path="$vcpkg_installed_ninja_dir;$env:Path"
+                  # Puts ninja.exe on the Path
+                  
+            }
+        }
+
+        if (! (Get-Command ninja -errorAction SilentlyContinue))
+        {   # vcpkg didn't work, try looking in Microsoft Visual Studio
+
+            if (Test-Path -Path "C:/Program Files/Microsoft Visual Studio") {
+                cd "C:/Program Files/Microsoft Visual Studio";
+                $ninja_dir = Get-ChildItem -Path "ninja.exe" -Recurse |
+                    Sort-Object -Descending -Property LastWriteTime |
+                    Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
+                if (($ninja_dir) -And (Test-Path -Path $ninja_dir)) {
+                      $env:Path="$ninja_dir;$env:Path"
+                }
+            }
+        }
+        if (! (Get-Command ninja -errorAction SilentlyContinue))
+        {   # Try looking in 32-bit Microsoft Visual Studio
+        
+            if (Test-Path -Path "C:/Program Files (x86)/Microsoft Visual Studio") {
+                cd "C:/Program Files (x86)/Microsoft Visual Studio";
+                $ninja_dir = Get-ChildItem -Path "ninja.exe" -Recurse |
+                    Sort-Object -Descending -Property LastWriteTime |
+                    Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
+                if (($ninja_dir) -And (Test-Path -Path $ninja_dir)) {
+                      $env:Path="$ninja_dir;$env:Path"
+                }
+            }
+        }
+
+        cd "$savedpwd"
+        
         ninja -C build
 
     - name: Test
