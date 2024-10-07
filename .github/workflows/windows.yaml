@@ -51,18 +51,6 @@ jobs:
         mtrx_compiler: ${{ matrix.compiler }}
       if: contains(matrix.os, 'windows')
       run: >
-        if ($env:mtrx_compiler -eq "msvc") {
-            $compiler="cl"
-        }
-        elseif ($env:mtrx_compiler -eq "gcc") {
-            $compiler="g++" # Must put mingw-64 g++ compiler on Path
-            
-        }
-        else { # Use clang with MSVC (MSVC's stdlib etc.)
-
-            $compiler="clang-cl"
-        }
-
         if (($env:VCPKG_INSTALLATION_ROOT) -and ($env:VCPKG_ROOT) -and (Test-Path "$env:VCPKG_INSTALLATION_ROOT")) {
             $env:VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT
         } # Check this both before and after getting a Visual Studio Developer Prompt
@@ -114,20 +102,22 @@ jobs:
         } # Check this both before and after getting a Visual Studio Developer Prompt
         
 
-        if (Get-Command winget -errorAction SilentlyContinue)
-        { # winget exists on newer versions of Windows 10 and on
-          # Windows 11 and after. It is is not supported on Windows
-          # Server 2019, and is experimental only on Windows Server
-          # 2022.
+        if (! (Get-Command pkg-config -errorAction SilentlyContinue)) {
+            if (Get-Command winget -errorAction SilentlyContinue)
+            { # winget exists on newer versions of Windows 10 and on
+              # Windows 11 and after. It is is not supported on Windows
+              # Server 2019, and is experimental only on Windows Server
+              # 2022.
         
-            winget install bloodrock.pkg-config-lite # For pkg-config
+                winget install bloodrock.pkg-config-lite # For pkg-config
         
-            # winget install Python # Already installed
-        }
-        else
-        {
-            vcpkg install pkgconf
+                # winget install Python # Already installed
+            }
+            else
+            {
+                vcpkg install pkgconf
             
+            }
         }
         
         $old_pkg_config_path=$env:PKG_CONFIG_PATH;
@@ -172,23 +162,26 @@ jobs:
             cd ~
         }
 
-        pip3 install --user meson
-        
-        if (Get-Command winget -errorAction SilentlyContinue)
-        { # winget exists on newer versions of Windows 10 and on
-          # Windows 11 and after. It is not supported on Windows
-          # Server 2019, and is experimental only on Windows Server
-          # 2022.
-        
-            winget install "Ninja-build.Ninja";
+        if (! (Get-Command meson -errorAction SilentlyContinue)) {
+            pip3 install --user meson
         }
-        else
-        {
-            vcpkg install vcpkg-tool-ninja
+
+        if (! (Get-Command ninja -errorAction SilentlyContinue)) {
+            if (Get-Command winget -errorAction SilentlyContinue)
+            {
+                winget install "Ninja-build.Ninja";
+            }
+            else
+            {
+                vcpkg install vcpkg-tool-ninja
+            }
         }
 
         vcpkg install curl[openssl]
-        # See https://github.com/openssl/openssl/issues/25520 for now !!!!!!!!
+        # See https://github.com/openssl/openssl/issues/25520 for now
+        # As and when the issue is fixed, just do "vcpkg install
+        # curl", which installs default curl that, on Windows, use
+        # S-Channel not openssl.
 
         vcpkg install openssl # This can take some time
         
@@ -226,11 +219,7 @@ jobs:
         cmake --build . --config Release;
         cmake --install . --config Release
 
-        if (! (Get-Command doxygen.exe -errorAction SilentlyContinue)) {
-            # We install doxygen last in the hope of avoiding having
-            # other packages build their doxygen documentation, which
-            # just takes time/resources needlessly
-            
+        if (! (Get-Command doxygen -errorAction SilentlyContinue)) {
             if (Get-Command winget -errorAction SilentlyContinue)
             { 
                 winget install doxygen
@@ -239,8 +228,7 @@ jobs:
             {
                 cd ~;
                 Invoke-WebRequest -Uri https://www.doxygen.nl/files/doxygen-1.12.0.windows.x64.bin.zip -OutFile doxygen.bin.zip;
-                Expand-Archive doxygen.bin.zip -DestinationPath doxygen.bin;
-                $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
+                Expand-Archive doxygen.bin.zip -DestinationPath doxygen.bin
             }
         }
 
@@ -266,39 +254,41 @@ jobs:
         else { # Use clang with MSVC (MSVC's stdlib etc.)
 
             $env:CXX="clang-cl";
-            $env:CXX_LD="lld" # !!!!!!!! Should we be setting CXX_LD for Windows?
+            $env:CXX_LD="lld"
         }
         
         $env:CC=$env:CXX
 
         $savedpwd=$pwd
 
-        if (Test-Path "~/AppData/Local/Packages") {
-          cd "~/AppData/Local/Packages";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |  
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-        }
+        if (! (Get-Command meson -errorAction SilentlyContinue)) {
+            if (Test-Path "~/AppData/Local/Packages") {
+              cd "~/AppData/Local/Packages";
+              $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+                  Sort-Object -Descending -Property LastWriteTime |  
+                  Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+            }
 
-        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python")) {
-          cd "~/AppData/Roaming/Python";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-        }
+            if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python")) {
+              cd "~/AppData/Roaming/Python";
+              $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+                  Sort-Object -Descending -Property LastWriteTime |
+                  Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+            }
 
-        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData")) {
-          cd "~/AppData";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-        }
+            if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData")) {
+              cd "~/AppData";
+              $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+                  Sort-Object -Descending -Property LastWriteTime |
+                  Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+            }
 
-        if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
-            $env:Path="$env:Path;$meson_exe_path"
-        }
-        else {
-            Write-Host "WARNING: meson.exe directory not added to path"
+            if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
+                $env:Path="$env:Path;$meson_exe_path"
+            }
+            else {
+                Write-Host "WARNING: meson.exe directory not added to path"
+            }
         }
 
         cd "$savedpwd"
@@ -373,22 +363,6 @@ jobs:
                   $env:Path="$vcpkg_installed_pkgconf_dir;$env:Path"
                   # Puts pkgconf.exe on the Path
 
-                # We don't need to create the symbolic link for
-                # pkg-config.exe, we did that before
-
-                if (! (Test-Path -Path "$vcpkg_installed_pkgconf_dir\pkg-config.exe")) {
-                    Write-Host "pkg-config.exe not found" # !!!!!!!! Remove
-                    
-                }
-            }
-            else {
-                Write-Host "pkgconf.exe not found" # !!!!!!!! Remove
-                
-                }
-
-            if (! (Test-Path -Path "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig\libcurl.pc")) {
-                    Write-Host "libcurl.pc not found" # !!!!!!!! Remove
-
                 }
 
             cd "$savedpwd"
@@ -397,10 +371,6 @@ jobs:
         if (Test-Path -Path "$env:USERPROFILE\doxygen.bin") {
             $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
         }
-
-        Write-Host "env:VCPKG_INSTALLATION_ROOT is $env:VCPKG_INSTALLATION_ROOT";
-        Write-Host "env:path is $env:path";
-        Write-Host "env:PKG_CONFIG_PATH is $env:PKG_CONFIG_PATH"
 
         meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG="$env:mtrx_def_debug" -DPISTACHE_USE_SSL="$env:mtrx_tls" -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true --buildtype=debug -Db_coverage=true -Db_sanitize="$env:mtrx_sanitizer" -Db_lundef=false
 
@@ -425,7 +395,7 @@ jobs:
         else { # Use clang with MSVC (MSVC's stdlib etc.)
 
             $env:CXX="clang-cl";
-            $env:CXX_LD="lld" # !!!!!!!! Should we be setting CXX_LD for Windows?
+            $env:CXX_LD="lld"
         }
         
         $env:CC=$env:CXX
@@ -517,35 +487,37 @@ jobs:
       run: >
         $savedpwd=$pwd
 
-        if (Test-Path "~/AppData/Local/Packages") {
-          cd "~/AppData/Local/Packages";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |  
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-        }
+        if (! (Get-Command meson -errorAction SilentlyContinue)) {
+            if (Test-Path "~/AppData/Local/Packages") {
+              cd "~/AppData/Local/Packages";
+              $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+                  Sort-Object -Descending -Property LastWriteTime |  
+                  Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+            }
 
-        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python")) {
-          cd "~/AppData/Roaming/Python";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-        }
+            if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python")) {
+              cd "~/AppData/Roaming/Python";
+              $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+                  Sort-Object -Descending -Property LastWriteTime |
+                  Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+            }
 
-        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData")) {
-          cd "~/AppData";
-          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-        }
+            if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData")) {
+              cd "~/AppData";
+              $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+                  Sort-Object -Descending -Property LastWriteTime |
+                  Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+            }
 
-        if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
-            $env:Path="$env:Path;$meson_exe_path"
-        }
-        else {
-            Write-Host "WARNING: meson.exe directory not added to path"
-        }
+            if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
+                $env:Path="$env:Path;$meson_exe_path"
+            }
+            else {
+                Write-Host "WARNING: meson.exe directory not added to path"
+            }
 
         cd "$savedpwd"
+        }
 
         meson test --no-rebuild -C build --verbose
         # Use the following to run just a single test (e.g. http_server_test)
