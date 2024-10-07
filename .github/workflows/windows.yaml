@@ -530,8 +530,8 @@ jobs:
 
         cd "$savedpwd"
 
-        meson test -C build --verbose
+        meson test --no-rebuild -C build --verbose
         # Use the following to run just a single test (e.g. http_server_test)
-        # run: build/tests/run_http_server_test
+        #   build/tests/run_http_server_test
 
     # No coverage analysis for Windows
