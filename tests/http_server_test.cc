@@ -1088,8 +1088,10 @@ TEST(http_server_test, client_request_timeout_on_delay_in_request_line_send_rais
       // error code when there is an actual error
 
 #ifdef _WIN32
-        if (client.lastErrno() == ECONNABORTED)
+        if (client.lastErrno() == ECONNABORTED) // Windows 11 Home
             EXPECT_EQ(client.lastErrno(), ECONNABORTED) << "Errno: " << client.lastErrno();
+        else if (client.lastErrno() == ECONNRESET) // Windows Server 2022
+            EXPECT_EQ(client.lastErrno(), ECONNRESET) << "Errno: " << client.lastErrno();
         else
 #endif
             EXPECT_EQ(client.lastErrno(), EPIPE) << "Errno: " << client.lastErrno();
