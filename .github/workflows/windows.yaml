@@ -80,10 +80,10 @@ jobs:
          
          if ((! ($launch_vs_dev_shell_dir)) -or (! (Test-Path -Path $launch_vs_dev_shell_dir))) {
              Write-Host "Launch-VsDevShell.ps1 not found in $env:ProgramFiles/Microsoft Visual Studio";
-             Write-Host "Looking in $env:ProgramFiles(x86)/Microsoft Visual Studio";
-             if (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
-                  Write-Host "Actually looking in $env:ProgramFiles(x86)/Microsoft Visual Studio";
-                  cd "$env:ProgramFiles(x86)/Microsoft Visual Studio";
+             Write-Host "Looking in ${env:ProgramFiles(x86)}/Microsoft Visual Studio";
+             if (Test-Path -Path "${env:ProgramFiles(x86)}/Microsoft Visual Studio") {
+                  Write-Host "Actually looking in ${env:ProgramFiles(x86)}/Microsoft Visual Studio";
+                  cd "${env:ProgramFiles(x86)}/Microsoft Visual Studio";
                   $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
                       Sort-Object -Descending -Property LastWriteTime |
                       Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
@@ -207,8 +207,8 @@ jobs:
             if ((! ($ninja_dir)) -or (! (Test-Path -Path $ninja_dir))) {
                 # Try looking in 32-bit Microsoft Visual Studio
                 
-                if (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
-                    cd "$env:ProgramFiles(x86)/Microsoft Visual Studio";
+                if (Test-Path -Path "${env:ProgramFiles(x86)}/Microsoft Visual Studio") {
+                    cd "${env:ProgramFiles(x86)}/Microsoft Visual Studio";
                     $ninja_dir = Get-ChildItem -Path "ninja.exe" -Recurse |
                         Sort-Object -Descending -Property LastWriteTime |
                         Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
@@ -357,8 +357,8 @@ jobs:
          }
          
          if ((! ($launch_vs_dev_shell_dir)) -or (! (Test-Path -Path $launch_vs_dev_shell_dir))) {
-             if (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
-                  cd "$env:ProgramFiles(x86)/Microsoft Visual Studio";
+             if (Test-Path -Path "${env:ProgramFiles(x86)}/Microsoft Visual Studio") {
+                  cd "${env:ProgramFiles(x86)}/Microsoft Visual Studio";
                   $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
                       Sort-Object -Descending -Property LastWriteTime |
                       Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
@@ -468,8 +468,8 @@ jobs:
          }
          
          if ((! ($launch_vs_dev_shell_dir)) -or (! (Test-Path -Path $launch_vs_dev_shell_dir))) {
-             if (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
-                  cd "$env:ProgramFiles(x86)/Microsoft Visual Studio";
+             if (Test-Path -Path "${env:ProgramFiles(x86)}/Microsoft Visual Studio") {
+                  cd "${env:ProgramFiles(x86)}/Microsoft Visual Studio";
                   $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
                       Sort-Object -Descending -Property LastWriteTime |
                       Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
@@ -524,8 +524,8 @@ jobs:
         if (! (Get-Command ninja -errorAction SilentlyContinue))
         {   # Try looking in 32-bit Microsoft Visual Studio
         
-            if (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
-                cd "$env:ProgramFiles(x86)/Microsoft Visual Studio";
+            if (Test-Path -Path "${env:ProgramFiles(x86)}/Microsoft Visual Studio") {
+                cd "${env:ProgramFiles(x86)}/Microsoft Visual Studio";
                 $ninja_dir = Get-ChildItem -Path "ninja.exe" -Recurse |
                     Sort-Object -Descending -Property LastWriteTime |
                     Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
