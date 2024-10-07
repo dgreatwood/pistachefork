@@ -83,8 +83,8 @@ jobs:
         # Ref: https://learn.microsoft.com/en-us/visualstudio/
         #          ide/reference/command-prompt-powershell?view=vs-2022
         
-        if (Test-Path -Path "C:/Program Files/Microsoft Visual Studio") {
-          cd "C:/Program Files/Microsoft Visual Studio";
+        if (Test-Path -Path "$env:ProgramFiles/Microsoft Visual Studio") {
+          cd "$env:ProgramFiles/Microsoft Visual Studio";
           $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |
               Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
@@ -95,8 +95,8 @@ jobs:
           cd ~
           
         }
-        elseif (Test-Path -Path "C:/Program Files (x86)/Microsoft Visual Studio") {
-          cd "C:/Program Files (x86)/Microsoft Visual Studio";
+        elseif (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
+          cd "$env:ProgramFiles(x86)/Microsoft Visual Studio";
           $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |
               Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
@@ -296,8 +296,8 @@ jobs:
 
         # Start a Visual Studio Developer Prompt, gives access to compiler "cl"
 
-        if (Test-Path -Path "C:/Program Files/Microsoft Visual Studio") {
-          cd "C:/Program Files/Microsoft Visual Studio";
+        if (Test-Path -Path "$env:ProgramFiles/Microsoft Visual Studio") {
+          cd "$env:ProgramFiles/Microsoft Visual Studio";
           $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |
               Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
@@ -306,8 +306,8 @@ jobs:
               ./Launch-VsDevShell.ps1 -Arch amd64 -HostArch amd64
           };
         }
-        elseif (Test-Path -Path "C:/Program Files (x86)/Microsoft Visual Studio") {
-          cd "C:/Program Files (x86)/Microsoft Visual Studio";
+        elseif (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
+          cd "$env:ProgramFiles(x86)/Microsoft Visual Studio";
           $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
               Sort-Object -Descending -Property LastWriteTime |
               Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
@@ -331,7 +331,7 @@ jobs:
         # pkg-config; whereas otherwise meson seems to find
         # C:\Strawberry\perl\bin\pkg-config.BAT first, and then meson
         # says "but it is Strawberry Perl and thus
-        # broken. Ignoring...".
+        # broken. Ignoring...", and fails to find our pkg-config.
 
         if (($env:VCPKG_INSTALLATION_ROOT) -And
             (Test-Path -Path "$env:VCPKG_INSTALLATION_ROOT\installed")) {
@@ -428,21 +428,21 @@ jobs:
                 cd "$env:VCPKG_INSTALLATION_ROOT\installed"
 
                 $vcpkg_installed_ninja_dir=Get-ChildItem -Path "ninja.exe" -Recurse |
-              Select -ExpandProperty "FullName" | Sort-Object { $_.Length } |
-              Select -Index 0 | Split-Path;
-            if (($vcpkg_installed_ninja_dir) -And
-              (Test-Path -Path $vcpkg_installed_ninja_dir)) {
-                  $env:Path="$vcpkg_installed_ninja_dir;$env:Path"
-                  # Puts ninja.exe on the Path
-                  
+                  Select -ExpandProperty "FullName" | Sort-Object { $_.Length } |
+                  Select -Index 0 | Split-Path;
+                if (($vcpkg_installed_ninja_dir) -And
+                  (Test-Path -Path $vcpkg_installed_ninja_dir)) {
+                      $env:Path="$vcpkg_installed_ninja_dir;$env:Path"
+                      # Puts ninja.exe on the Path
+                }  
             }
         }
 
         if (! (Get-Command ninja -errorAction SilentlyContinue))
         {   # vcpkg didn't work, try looking in Microsoft Visual Studio
 
-            if (Test-Path -Path "C:/Program Files/Microsoft Visual Studio") {
-                cd "C:/Program Files/Microsoft Visual Studio";
+            if (Test-Path -Path "$env:ProgramFiles/Microsoft Visual Studio") {
+                cd "$env:ProgramFiles/Microsoft Visual Studio";
                 $ninja_dir = Get-ChildItem -Path "ninja.exe" -Recurse |
                     Sort-Object -Descending -Property LastWriteTime |
                     Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
@@ -451,11 +451,12 @@ jobs:
                 }
             }
         }
+        
         if (! (Get-Command ninja -errorAction SilentlyContinue))
         {   # Try looking in 32-bit Microsoft Visual Studio
         
-            if (Test-Path -Path "C:/Program Files (x86)/Microsoft Visual Studio") {
-                cd "C:/Program Files (x86)/Microsoft Visual Studio";
+            if (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
+                cd "$env:ProgramFiles(x86)/Microsoft Visual Studio";
                 $ninja_dir = Get-ChildItem -Path "ninja.exe" -Recurse |
                     Sort-Object -Descending -Property LastWriteTime |
                     Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
