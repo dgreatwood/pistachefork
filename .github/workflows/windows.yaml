@@ -394,7 +394,7 @@ jobs:
             cd "$savedpwd"
         }
 
-        if (Test-Path -Path "~/doxygen.bin") {
+        if (Test-Path -Path "$env:USERPROFILE\doxygen.bin") {
             $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
         }
 
@@ -505,7 +505,7 @@ jobs:
             }
         }
 
-        if (Test-Path -Path "~/doxygen.bin") {
+        if (Test-Path -Path "$env:USERPROFILE\doxygen.bin") {
             $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
         }
 
