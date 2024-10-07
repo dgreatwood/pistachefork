@@ -497,8 +497,41 @@ jobs:
         ninja -C build
 
     - name: Test
-      run: meson test -C build --verbose
-      # Use the following to run just a single test (e.g. http_server_test)
-      # run: build/tests/run_http_server_test
+      run: >
+        $savedpwd=$pwd
 
-    # No attempt to do coverage analysis
+        if (Test-Path "~/AppData/Local/Packages") {
+          cd "~/AppData/Local/Packages";
+          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |  
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+        }
+
+        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData/Roaming/Python")) {
+          cd "~/AppData/Roaming/Python";
+          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+        }
+
+        if (((! ($meson_exe_path)) -or (! (Test-Path -Path $meson_exe_path))) -and (Test-Path "~/AppData")) {
+          cd "~/AppData";
+          $meson_exe_path = Get-ChildItem -Path "meson.exe" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+        }
+
+        if (($meson_exe_path) -And (Test-Path -Path $meson_exe_path)) {
+            $env:Path="$env:Path;$meson_exe_path"
+        }
+        else {
+            Write-Host "WARNING: meson.exe directory not added to path"
+        }
+
+        cd "$savedpwd"
+
+        meson test -C build --verbose
+        # Use the following to run just a single test (e.g. http_server_test)
+        # run: build/tests/run_http_server_test
+
+    # No coverage analysis for Windows
