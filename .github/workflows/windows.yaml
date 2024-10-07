@@ -106,9 +106,9 @@ jobs:
                 $hacked_lvsdv_path='C:\Program Files (x86)\Microsoft Visual Studio\2019\Community';
                 if (Test-Path -Path $hacked_lvsdv_path) {
                     Write-Host "Found $hacked_lvsdv_path"
-	        }
+                }
                 else {
-            	    Write-Host "NOT found $hacked_lvsdv_path"
+                    Write-Host "NOT found $hacked_lvsdv_path"
 
                     $hacked_lvsdv_path='C:\Program Files (x86)\Microsoft Visual Studio\2019';
                     if (Test-Path -Path $hacked_lvsdv_path) {
