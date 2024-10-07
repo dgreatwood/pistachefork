@@ -102,7 +102,9 @@ jobs:
         } # Check this both before and after getting a Visual Studio Developer Prompt
         
 
-        if (! (Get-Command pkg-config -errorAction SilentlyContinue)) {
+        if ((! (Get-Command pkg-config -errorAction SilentlyContinue)) -or ((which pkg-config) -like "*Strawberry*"))
+        { # meson does not accept the version of pkg-config in Strawberry Perl
+        
             if (Get-Command winget -errorAction SilentlyContinue)
             { # winget exists on newer versions of Windows 10 and on
               # Windows 11 and after. It is is not supported on Windows
@@ -153,7 +155,7 @@ jobs:
                   $env:Path="$vcpkg_installed_pkgconf_dir;$env:Path"
                   # Puts pkgconf.exe on the Path
 
-                  if (! (Get-Command pkg-config.exe -errorAction SilentlyContinue))
+                  if ((! (Get-Command pkg-config.exe -errorAction SilentlyContinue)) -or ((which pkg-config) -like "*Strawberry*"))
                   {
                       New-Item -ItemType SymbolicLink -Path "$vcpkg_installed_pkgconf_dir\pkg-config.exe" -Target "$vcpkg_installed_pkgconf_dir\pkgconf.exe"
                   }
