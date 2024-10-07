@@ -176,26 +176,16 @@ jobs:
         
         if (Get-Command winget -errorAction SilentlyContinue)
         { # winget exists on newer versions of Windows 10 and on
-          # Windows 11 and after. It is is not supported on Windows
+          # Windows 11 and after. It is not supported on Windows
           # Server 2019, and is experimental only on Windows Server
           # 2022.
         
             winget install "Ninja-build.Ninja";
-            winget install doxygen
         }
         else
         {
             vcpkg install vcpkg-tool-ninja
-
-            if (! (Get-Command doxygen.exe -errorAction SilentlyContinue))
-            {
-                cd ~;
-                Invoke-WebRequest -Uri https://www.doxygen.nl/files/doxygen-1.12.0.windows.x64.bin.zip -OutFile doxygen.bin.zip;
-                Expand-Archive doxygen.bin.zip -DestinationPath doxygen.bin;
-                $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
-            }
         }
-
 
         vcpkg install curl[openssl]
         # See https://github.com/openssl/openssl/issues/25520 for now !!!!!!!!
@@ -235,6 +225,25 @@ jobs:
         cmake ..;
         cmake --build . --config Release;
         cmake --install . --config Release
+
+        if (! (Get-Command doxygen.exe -errorAction SilentlyContinue)) {
+            # We install doxygen last in the hope of avoiding having
+            # other packages build their doxygen documentation, which
+            # just takes time/resources needlessly
+            
+            if (Get-Command winget -errorAction SilentlyContinue)
+            { 
+                winget install doxygen
+            }
+            else
+            {
+                cd ~;
+                Invoke-WebRequest -Uri https://www.doxygen.nl/files/doxygen-1.12.0.windows.x64.bin.zip -OutFile doxygen.bin.zip;
+                Expand-Archive doxygen.bin.zip -DestinationPath doxygen.bin;
+                $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
+            }
+        }
+
 
     - uses: actions/checkout@v4
       with:
@@ -385,6 +394,10 @@ jobs:
             cd "$savedpwd"
         }
 
+        if (Test-Path -Path "~/doxygen.bin") {
+            $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
+        }
+
         Write-Host "env:VCPKG_INSTALLATION_ROOT is $env:VCPKG_INSTALLATION_ROOT";
         Write-Host "env:path is $env:path";
         Write-Host "env:PKG_CONFIG_PATH is $env:PKG_CONFIG_PATH"
@@ -490,6 +503,10 @@ jobs:
                       $env:Path="$ninja_dir;$env:Path"
                 }
             }
+        }
+
+        if (Test-Path -Path "~/doxygen.bin") {
+            $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
         }
 
         cd "$savedpwd"
