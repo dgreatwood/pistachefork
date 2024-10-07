@@ -419,6 +419,32 @@ jobs:
 
         $savedpwd=$pwd
 
+        # Start a Visual Studio Developer Prompt, gives access to compiler "cl"
+
+        if (Test-Path -Path "$env:ProgramFiles/Microsoft Visual Studio") {
+          cd "$env:ProgramFiles/Microsoft Visual Studio";
+          $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
+          if (($launch_vs_dev_shell_dir) -And (Test-Path -Path $launch_vs_dev_shell_dir)) {
+              cd "$launch_vs_dev_shell_dir";
+              ./Launch-VsDevShell.ps1 -Arch amd64 -HostArch amd64
+          };
+        }
+        elseif (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
+          cd "$env:ProgramFiles(x86)/Microsoft Visual Studio";
+          $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
+              Sort-Object -Descending -Property LastWriteTime |
+              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path;
+          if (($launch_vs_dev_shell_dir) -And (Test-Path -Path $launch_vs_dev_shell_dir)) {
+              cd "$launch_vs_dev_shell_dir";
+              ./Launch-VsDevShell.ps1 -Arch amd64 -HostArch amd64
+              
+          }
+        }
+
+        # Make sure we have ninja on the path
+
         if (! (Get-Command ninja -errorAction SilentlyContinue))
         {   # First try vcpkg
 
