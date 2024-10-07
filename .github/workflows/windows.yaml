@@ -79,7 +79,7 @@ jobs:
          }
          
          if ((! ($launch_vs_dev_shell_dir)) -or (! (Test-Path -Path $launch_vs_dev_shell_dir))) {
-             Write-Host "Launch-VsDevShell.ps1 not found in "$env:ProgramFiles/Microsoft Visual Studio";
+             Write-Host "Launch-VsDevShell.ps1 not found in $env:ProgramFiles/Microsoft Visual Studio";
              Write-Host "Looking in $env:ProgramFiles(x86)/Microsoft Visual Studio";
              if (Test-Path -Path "$env:ProgramFiles(x86)/Microsoft Visual Studio") {
                   Write-Host "Actually looking in $env:ProgramFiles(x86)/Microsoft Visual Studio";
