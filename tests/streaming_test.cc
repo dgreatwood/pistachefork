@@ -55,7 +55,7 @@ void dumpData(const Rest::Request& /*req*/, Http::ResponseWriter response)
             while (jobCounter < JOB_LIMIT)
             {
                 std::unique_lock<Lock> l(jobLock);
-                cv.wait(l, [&jobCounter, &jobs] {
+                cv.wait(l, [=, &jobCounter, &jobs] {
                     return !jobs.empty() || !(jobCounter < JOB_LIMIT);
                 });
                 if (!jobs.empty())
