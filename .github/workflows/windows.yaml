@@ -96,8 +96,8 @@ jobs:
                 ./Launch-VsDevShell.ps1 -Arch amd64 -HostArch amd64
             } catch {
                 Write-Host "Error in Launch-VsDevShell.ps1, checking Launch-VsDevShell.ps1's help";
-                d "$launch_vs_dev_shell_dir";
-                if (! ((Launch-VsDevShell.ps1 -?) -like "*-HostArch*")) {
+                cd "$launch_vs_dev_shell_dir";
+                if (! ((./Launch-VsDevShell.ps1 -?) -like "*-HostArch*")) {
                     Write-Host "Launch-VsDevShell.ps1 has no parameter -HostArch";
                     if (Test-Path -Path "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe") {
                         Write-Host "Going to try Import-Module and Enter-VsDevShell";
