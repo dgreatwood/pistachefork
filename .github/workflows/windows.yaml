@@ -110,8 +110,8 @@ jobs:
                         if ($dev_shell_path) {
                             Import-Module "$dev_shell_path";
                             Write-Host (Get-Help Enter-VsDevShell);
-                            $env:VSCMD_DEBUG=1
-                            Enter-VsDevShell -VsInstanceId $vs_instance_id -SkipAutomaticLocation -DevCmdDebugLevel None -DevCmdArguments '-arch=x64'
+                            $env:VSCMD_DEBUG=1;
+                            Enter-VsDevShell -VsInstanceId $vs_instance_id -SkipAutomaticLocation -DevCmdDebugLevel Basic -Arch amd64 -DevCmdArguments '-arch=x64'
                         }
                         else {
                             Write-Host "WARNING: Microsoft.VisualStudio.DevShell.dll"
