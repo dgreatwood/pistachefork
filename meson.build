@@ -161,7 +161,11 @@ if not has_dladdr_func
   if not has_dladdr_func
     warning('Unable to find dladdr(), even when trying to link to libdl')
   endif
-  deps_libpistache += libdl_dep
+  if meson.version().version_compare('>=0.62.0')
+    deps_libpistache += dependency('dl', required: false)
+  else
+    deps_libpistache += compiler.find_library('dl', required: false)
+  endif
 endif
 
 version_array = []
