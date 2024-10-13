@@ -156,12 +156,17 @@ endif
 # functionality is provided by libc
 has_dladdr_func = compiler.has_function('dladdr')
 if not has_dladdr_func
-  libdl_dep += dependency('dl')
+  libdl_dep = dependency('dl')
   has_dladdr_func = compiler.has_function('dladdr', dependencies: libdl_dep)
   if not has_dladdr_func
     warning('Unable to find dladdr(), even when trying to link to libdl')
   endif
-  libpistache_deps += libdl_dep
+  if meson.version().version_compare('>=0.62.0')
+    libdl_dep_rf = dependency('dl', required: false)
+    libpistache_deps += libdl_dep_rf
+  else
+    deps_libpistache += compiler.find_library('dl', required: false)
+  endif
 endif
 
 version_array = []
