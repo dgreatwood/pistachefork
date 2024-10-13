@@ -168,7 +168,11 @@ endif
 #     deps_libpistache += compiler.find_library('dl', required: false)
 #   endif
 # endif
-deps_libpistache += compiler.find_library('dl', required: false)
+if meson.version().version_compare('>=0.62.0')
+  libpistache_deps += dependency('dl', required: false)
+else
+  deps_libpistache += compiler.find_library('dl', required: false)
+endif
 
 version_array = []
 if meson.version().version_compare('>=0.57.0')
