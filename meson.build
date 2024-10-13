@@ -163,13 +163,13 @@ endif
 #   endif
 #   if meson.version().version_compare('>=0.62.0')
 #     libdl_dep_rf = dependency('dl', required: false)
-#     libpistache_deps += libdl_dep_rf
+#     deps_libpistache += libdl_dep_rf
 #   else
 #     deps_libpistache += compiler.find_library('dl', required: false)
 #   endif
 # endif
 if meson.version().version_compare('>=0.62.0')
-  libpistache_deps += dependency('dl', required: false)
+  deps_libpistache += dependency('dl', required: false)
 else
   deps_libpistache += compiler.find_library('dl', required: false)
 endif
