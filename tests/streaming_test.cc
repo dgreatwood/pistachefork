@@ -79,7 +79,7 @@ void dumpData(const Rest::Request& /*req*/, Http::ResponseWriter response)
     {
         for (size_t i = 0; i < N_LETTERS; ++i)
         {   // Re: '=', see prior comment about capture of const/constexpr
-            auto job = [=, &stream, &responseLock, &jobLock]() -> void {
+            auto job = [=, &stream, &responseLock]() -> void {
                 constexpr size_t nchunks    = 10;
                 constexpr size_t chunk_size = LETTER_REPEATS / nchunks;
                 const std::string payload(chunk_size, static_cast<char>(letter + i));
