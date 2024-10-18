@@ -319,7 +319,7 @@ int clientLogicFunc(size_t response_size, const std::string& server_page,
 // the bug is at this time.
 #if defined(_MSC_VER) && _MSC_VER < 1930
 // Last VS 2019 has _MSC_VER 1929, first VS 2022 has _MSC_VER 1930
-// https://en.wikipedia.org/wiki/Microsoft_Visual_C%2B%2B#Internal_version_numbering:
+// https://en.wikipedia.org/wiki/Microsoft_Visual_C%2B%2B#Internal_version_numbering
 #define EndpointPtrT Http::Endpoint *
 #else
 #define EndpointPtrT std::unique_ptr<Http::Endpoint>
@@ -904,6 +904,19 @@ TEST(http_server_test, response_size_captured)
 #endif
 }
 
+// This test crashes intermittently in Windows Server 2019 with Visual Studio
+// 2019. It crashes, and silently exits, between client.connect and
+// client.receive. There are hints from debug output that something is
+// happenning in another thread to stamp on the program - but what the problem
+// is has not been determined as Oct/2024. (The nature of the hint - when
+// outputting debug info between client.connect and client.receive, have seen
+// repeatedly that the string being written to stdout is halfway written when
+// the program crashes).
+
+#if (! defined(_MSC_VER)) || (_MSC_VER >= 1930)
+// Last VS 2019 has _MSC_VER 1929, first VS 2022 has _MSC_VER 1930
+// https://en.wikipedia.org/wiki/Microsoft_Visual_C%2B%2B#Internal_version_numbering
+
 TEST(http_server_test, client_request_timeout_on_only_connect_raises_http_408)
 {
     PS_TIMEDBG_START;
@@ -960,6 +973,8 @@ TEST(http_server_test, client_request_timeout_on_only_connect_raises_http_408)
 #endif
 #endif
 }
+
+#endif // of if (! defined(_MSC_VER)) || (_MSC_VER >= 1930))
 
 TEST(http_server_test, client_request_timeout_on_delay_in_header_send_raises_http_408)
 {
