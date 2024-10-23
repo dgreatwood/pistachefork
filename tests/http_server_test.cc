@@ -38,11 +38,6 @@
 #include <string>
 #include <thread>
 
-#ifdef _IS_WINDOWS
-#include <Windows.h>
-#include <fileapi.h> // for GetTempPathW
-#endif
-
 #include "helpers/fd_utils.h"
 #include "tcp_client.h"
 
@@ -86,7 +81,6 @@ namespace
 
 #define LOGGER(prefix, message) ScopedLogger(                   \
     prefix, __FILE__, __LINE__, __FUNCTION__).stream() << message;
-
 }
 
 struct HelloHandlerWithDelay : public Http::Handler
@@ -279,37 +273,6 @@ int clientLogicFunc(size_t response_size, const std::string& server_page,
     return resolver_counter;
 }
 
-// For two tests - server_with_static_file and
-// client_request_timeout_on_only_connect_raises_http_408 (as Oct/2024) - we
-// have seen intermittent crashes on Windows; the test program silently exits
-// without giving a reason. The tests are crashing upon the destruction of
-// Http::Endpoint (I'm pretty certain this is the issue for
-// server_with_static_file, less sure for
-// client_request_timeout_on_only_connect_raises_http_408). They do not appear
-// to be crashing in the Endpoint destructor, but after the Endpoint destructor
-// has returned, perhaps on a memory free. We have seen this behaviour solely
-// with Windows Server 2019 using Visual Studio 2019. Visual Studio 2022 works
-// fine on both Winodws 11 and Windows Server 2022.
-//
-// The workaround below uses a C-pointer to point to the Http::Endpoint in
-// those two tests when Visual Studio 2019 or earlier is being used for
-// compilation, which causes the Http::Endpoint instance to be leaked. For all
-// other cases (Visual Studio 2022 and later, or any non Visual Studio
-// compiler), we use a unique_ptr, which of course causes the Endpoint to be
-// freed when the unique_ptr goes out of scope.
-//
-// Although it's possible, even likely, that the intermittent crash upon the
-// destruction of the Endpoint instance is a Pistache bug, we do not see what
-// the bug is at this time.
-#if defined(_MSC_VER) && _MSC_VER < 1930
-// Last VS 2019 has _MSC_VER 1929, first VS 2022 has _MSC_VER 1930
-// https://en.wikipedia.org/wiki/Microsoft_Visual_C%2B%2B#Internal_version_numbering
-#define EndpointPtrT Http::Endpoint *
-#else
-#define EndpointPtrT std::unique_ptr<Http::Endpoint>
-#endif
-
-
 TEST(http_server_test,
      client_disconnection_on_timeout_from_single_threaded_server)
 {
@@ -322,31 +285,31 @@ TEST(http_server_test,
 #endif
 
     { // encapsulate
+        
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        const Pistache::Address address("localhost", Pistache::Port(0));
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags);
+    server.init(server_opts);
 
-        Http::Endpoint server(address);
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags);
-        server.init(server_opts);
+    LOGGER("test", "Trying to run server...");
+    const int ONE_SECOND_TIMEOUT = 1;
+    const int SIX_SECONDS_DELAY  = 6;
+    server.setHandler(
+        Http::make_handler<HelloHandlerWithDelay>(SIX_SECONDS_DELAY));
+    server.serveThreaded();
 
-        LOGGER("test", "Trying to run server...");
-        const int ONE_SECOND_TIMEOUT = 1;
-        const int SIX_SECONDS_DELAY  = 6;
-        server.setHandler(
-            Http::make_handler<HelloHandlerWithDelay>(SIX_SECONDS_DELAY));
-        server.serveThreaded();
+    const std::string server_address = "localhost:" + server.getPort().toString();
+    LOGGER("test", "Server address: " << server_address);
 
-        const std::string server_address = "localhost:" + server.getPort().toString();
-        LOGGER("test", "Server address: " << server_address);
+    const int CLIENT_REQUEST_SIZE = 1;
+    int counter                   = clientLogicFunc(CLIENT_REQUEST_SIZE, server_address,
+                                                    ONE_SECOND_TIMEOUT, SIX_SECONDS_DELAY);
 
-        const int CLIENT_REQUEST_SIZE = 1;
-        int counter                   = clientLogicFunc(CLIENT_REQUEST_SIZE, server_address,
-                                                        ONE_SECOND_TIMEOUT, SIX_SECONDS_DELAY);
+    server.shutdown();
 
-        server.shutdown();
-
-        ASSERT_EQ(counter, 0);
+    ASSERT_EQ(counter, 0);
 
     } // end encapsulate
 
@@ -375,33 +338,33 @@ TEST(
 
     { // encapsulate
 
-        const Pistache::Address address("localhost", Pistache::Port(0));
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        Http::Endpoint server(address);
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags);
-        server.init(server_opts);
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags);
+    server.init(server_opts);
 
-        LOGGER("test", "Trying to run server...");
-        const int ONE_SECOND_TIMEOUT = 1;
-        const int SIX_SECONDS_DELAY  = 6;
-        server.setHandler(
-            Http::make_handler<HelloHandlerWithDelay>(SIX_SECONDS_DELAY));
-        server.serveThreaded();
+    LOGGER("test", "Trying to run server...");
+    const int ONE_SECOND_TIMEOUT = 1;
+    const int SIX_SECONDS_DELAY  = 6;
+    server.setHandler(
+        Http::make_handler<HelloHandlerWithDelay>(SIX_SECONDS_DELAY));
+    server.serveThreaded();
 
-        const std::string server_address = "localhost:" + server.getPort().toString();
-        LOGGER("test", "Server address: " << server_address);
+    const std::string server_address = "localhost:" + server.getPort().toString();
+    LOGGER("test", "Server address: " << server_address);
 
-        const int CLIENT_REQUEST_SIZE = 3;
-        int counter                   = clientLogicFunc(CLIENT_REQUEST_SIZE, server_address,
-                                                        ONE_SECOND_TIMEOUT, SIX_SECONDS_DELAY);
+    const int CLIENT_REQUEST_SIZE = 3;
+    int counter                   = clientLogicFunc(CLIENT_REQUEST_SIZE, server_address,
+                                                    ONE_SECOND_TIMEOUT, SIX_SECONDS_DELAY);
 
-        server.shutdown();
+    server.shutdown();
 
-        ASSERT_EQ(counter, 0);
+    ASSERT_EQ(counter, 0);
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -425,40 +388,40 @@ TEST(http_server_test, multiple_client_with_requests_to_multithreaded_server)
 
     { // encapsulate
 
-        const Pistache::Address address("localhost", Pistache::Port(0));
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        Http::Endpoint server(address);
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags).threads(3);
-        server.init(server_opts);
-        LOGGER("test", "Trying to run server...");
-        server.setHandler(Http::make_handler<HelloHandlerWithDelay>());
-        ASSERT_NO_THROW(server.serveThreaded());
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags).threads(3);
+    server.init(server_opts);
+    LOGGER("test", "Trying to run server...");
+    server.setHandler(Http::make_handler<HelloHandlerWithDelay>());
+    ASSERT_NO_THROW(server.serveThreaded());
 
-        const std::string server_address = "localhost:" + server.getPort().toString();
-        LOGGER("test", "Server address: " << server_address);
+    const std::string server_address = "localhost:" + server.getPort().toString();
+    LOGGER("test", "Server address: " << server_address);
 
-        const int NO_TIMEOUT                = 0;
-        const int SIX_SECONDS_TIMOUT        = 6;
-        const int FIRST_CLIENT_REQUEST_SIZE = 4;
-        std::future<int> result1(std::async(clientLogicFunc,
-                                            FIRST_CLIENT_REQUEST_SIZE, server_address,
-                                            NO_TIMEOUT, SIX_SECONDS_TIMOUT));
-        const int SECOND_CLIENT_REQUEST_SIZE = 5;
-        std::future<int> result2(
-            std::async(clientLogicFunc, SECOND_CLIENT_REQUEST_SIZE, server_address,
-                       NO_TIMEOUT, SIX_SECONDS_TIMOUT));
+    const int NO_TIMEOUT                = 0;
+    const int SIX_SECONDS_TIMOUT        = 6;
+    const int FIRST_CLIENT_REQUEST_SIZE = 4;
+    std::future<int> result1(std::async(clientLogicFunc,
+                                        FIRST_CLIENT_REQUEST_SIZE, server_address,
+                                        NO_TIMEOUT, SIX_SECONDS_TIMOUT));
+    const int SECOND_CLIENT_REQUEST_SIZE = 5;
+    std::future<int> result2(
+        std::async(clientLogicFunc, SECOND_CLIENT_REQUEST_SIZE, server_address,
+                   NO_TIMEOUT, SIX_SECONDS_TIMOUT));
 
-        int res1 = result1.get();
-        int res2 = result2.get();
+    int res1 = result1.get();
+    int res2 = result2.get();
 
-        server.shutdown();
+    server.shutdown();
 
-        ASSERT_EQ(res1, FIRST_CLIENT_REQUEST_SIZE);
-        ASSERT_EQ(res2, SECOND_CLIENT_REQUEST_SIZE);
+    ASSERT_EQ(res1, FIRST_CLIENT_REQUEST_SIZE);
+    ASSERT_EQ(res2, SECOND_CLIENT_REQUEST_SIZE);
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -482,40 +445,40 @@ TEST(http_server_test, many_client_with_requests_to_multithreaded_server)
 
     { // encapsulate
 
-        const Pistache::Address address("localhost", Pistache::Port(0));
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        Http::Endpoint server(address);
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags).threads(6);
-        server.init(server_opts);
-        LOGGER("test", "Trying to run server...");
-        server.setHandler(Http::make_handler<HelloHandlerWithDelay>());
-        ASSERT_NO_THROW(server.serveThreaded());
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags).threads(6);
+    server.init(server_opts);
+    LOGGER("test", "Trying to run server...");
+    server.setHandler(Http::make_handler<HelloHandlerWithDelay>());
+    ASSERT_NO_THROW(server.serveThreaded());
 
-        const std::string server_address = "localhost:" + server.getPort().toString();
-        LOGGER("test", "Server address: " << server_address);
+    const std::string server_address = "localhost:" + server.getPort().toString();
+    LOGGER("test", "Server address: " << server_address);
 
-        const int NO_TIMEOUT                = 0;
-        const int SECONDS_TIMOUT            = 20;
-        const int FIRST_CLIENT_REQUEST_SIZE = 128;
-        std::future<int> result1(std::async(clientLogicFunc,
-                                            FIRST_CLIENT_REQUEST_SIZE, server_address,
-                                            NO_TIMEOUT, SECONDS_TIMOUT));
-        const int SECOND_CLIENT_REQUEST_SIZE = 192;
-        std::future<int> result2(
-            std::async(clientLogicFunc, SECOND_CLIENT_REQUEST_SIZE, server_address,
-                       NO_TIMEOUT, 3 * SECONDS_TIMOUT));
+    const int NO_TIMEOUT                = 0;
+    const int SECONDS_TIMOUT            = 20;
+    const int FIRST_CLIENT_REQUEST_SIZE = 128;
+    std::future<int> result1(std::async(clientLogicFunc,
+                                        FIRST_CLIENT_REQUEST_SIZE, server_address,
+                                        NO_TIMEOUT, SECONDS_TIMOUT));
+    const int SECOND_CLIENT_REQUEST_SIZE = 192;
+    std::future<int> result2(
+        std::async(clientLogicFunc, SECOND_CLIENT_REQUEST_SIZE, server_address,
+                   NO_TIMEOUT, 3 * SECONDS_TIMOUT));
 
-        int res1 = result1.get();
-        int res2 = result2.get();
+    int res1 = result1.get();
+    int res2 = result2.get();
 
-        server.shutdown();
+    server.shutdown();
 
-        ASSERT_EQ(res1, FIRST_CLIENT_REQUEST_SIZE);
-        ASSERT_EQ(res2, SECOND_CLIENT_REQUEST_SIZE);
+    ASSERT_EQ(res1, FIRST_CLIENT_REQUEST_SIZE);
+    ASSERT_EQ(res2, SECOND_CLIENT_REQUEST_SIZE);
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -540,47 +503,47 @@ TEST(http_server_test,
 
     { // encapsulate
 
-        const Pistache::Address address("localhost", Pistache::Port(0));
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        Http::Endpoint server(address);
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags).threads(4);
-        server.init(server_opts);
-        const int SIX_SECONDS_DELAY = 6;
-        server.setHandler(Http::make_handler<HandlerWithSlowPage>(SIX_SECONDS_DELAY));
-        server.serveThreaded();
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags).threads(4);
+    server.init(server_opts);
+    const int SIX_SECONDS_DELAY = 6;
+    server.setHandler(Http::make_handler<HandlerWithSlowPage>(SIX_SECONDS_DELAY));
+    server.serveThreaded();
 
-        const std::string server_address = "localhost:" + server.getPort().toString();
-        LOGGER("test", "Server address: " << server_address);
+    const std::string server_address = "localhost:" + server.getPort().toString();
+    LOGGER("test", "Server address: " << server_address);
 
-        const int FIRST_CLIENT_REQUEST_SIZE = 1;
-        const int FIRST_CLIENT_TIMEOUT      = SIX_SECONDS_DELAY / 2;
-        std::future<int> result1(std::async(
-            clientLogicFunc, FIRST_CLIENT_REQUEST_SIZE, server_address + SLOW_PAGE,
-            FIRST_CLIENT_TIMEOUT, SIX_SECONDS_DELAY));
-        const int SECOND_CLIENT_REQUEST_SIZE = 2;
-        const int SECOND_CLIENT_TIMEOUT      = SIX_SECONDS_DELAY * 2;
-        std::future<int> result2(
-            std::async(clientLogicFunc, SECOND_CLIENT_REQUEST_SIZE, server_address,
-                       SECOND_CLIENT_TIMEOUT, 2 * SIX_SECONDS_DELAY));
+    const int FIRST_CLIENT_REQUEST_SIZE = 1;
+    const int FIRST_CLIENT_TIMEOUT      = SIX_SECONDS_DELAY / 2;
+    std::future<int> result1(std::async(
+        clientLogicFunc, FIRST_CLIENT_REQUEST_SIZE, server_address + SLOW_PAGE,
+        FIRST_CLIENT_TIMEOUT, SIX_SECONDS_DELAY));
+    const int SECOND_CLIENT_REQUEST_SIZE = 2;
+    const int SECOND_CLIENT_TIMEOUT      = SIX_SECONDS_DELAY * 2;
+    std::future<int> result2(
+        std::async(clientLogicFunc, SECOND_CLIENT_REQUEST_SIZE, server_address,
+                   SECOND_CLIENT_TIMEOUT, 2 * SIX_SECONDS_DELAY));
 
-        int res1 = result1.get();
-        int res2 = result2.get();
+    int res1 = result1.get();
+    int res2 = result2.get();
 
-        server.shutdown();
+    server.shutdown();
 
-        if (hardware_concurrency() > 1)
-        {
-            ASSERT_EQ(res1, 0);
-            ASSERT_EQ(res2, SECOND_CLIENT_REQUEST_SIZE);
-        }
-        else
-        {
-            ASSERT_TRUE(true);
-        }
+    if (hardware_concurrency() > 1)
+    {
+        ASSERT_EQ(res1, 0);
+        ASSERT_EQ(res2, SECOND_CLIENT_REQUEST_SIZE);
+    }
+    else
+    {
+        ASSERT_TRUE(true);
+    }
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -605,97 +568,96 @@ TEST(http_server_test, server_with_static_file)
     { // encapsulate
 
 #ifdef _IS_WINDOWS
-        // Note there is no mkstemp on Windows
+    // Note there is no mkstemp on Windows
 
-        const char * fileName = 0;
-        std::string fn_buf_sstr("C:\\temp\\pistacheio76191");
+    const char * fileName = 0;
+    std::string fn_buf_sstr("C:\\temp\\pistacheio76191");
 
-        { // encapsulate
-            TCHAR tmp_path[PST_MAXPATHLEN+16];
-            tmp_path[0] = 0;
-            DWORD gtp_res = GetTempPathA(PST_MAXPATHLEN, &(tmp_path[0]));
-            if ((!gtp_res) || (gtp_res > PST_MAXPATHLEN))
-            {
-                std::cerr << "No temp path found!" << std::endl;
-            }
-            else
-            {
-                TCHAR tmp_fn_buf[PST_MAXPATHLEN+16];
-                tmp_fn_buf[0] = 0;
-                UINT gtfn_res = GetTempFileNameA(&(tmp_path[0]),
-                                                 "PST", // prefix
-                                                 0, // Windows chooses the name
-                                                 &(tmp_fn_buf[0]));
-                if (!gtfn_res)
-                    std::cerr << "No temp path found!" << std::endl;
-                else
-                    fn_buf_sstr = std::string(&(tmp_fn_buf[0]));
-            }
-        }
-        fileName = fn_buf_sstr.c_str();
-        
-#else
-        char fileName[PST_MAXPATHLEN] = "/tmp/pistacheioXXXXXX";
-        if (!mkstemp(fileName))
+    { // encapsulate
+        TCHAR tmp_path[PST_MAXPATHLEN+16];
+        tmp_path[0] = 0;
+        DWORD gtp_res = GetTempPathA(PST_MAXPATHLEN, &(tmp_path[0]));
+        if ((!gtp_res) || (gtp_res > PST_MAXPATHLEN))
         {
-            std::cerr << "No suitable filename can be generated!" << std::endl;
+            std::cerr << "No temp path found!" << std::endl;
         }
+        else
+        {
+            TCHAR tmp_fn_buf[PST_MAXPATHLEN+16];
+            tmp_fn_buf[0] = 0;
+            UINT gtfn_res = GetTempFileNameA(&(tmp_path[0]),
+                                             "PST", // prefix
+                                             0, // Windows chooses the name
+                                             &(tmp_fn_buf[0]));
+            if (!gtfn_res)
+                std::cerr << "No temp path found!" << std::endl;
+            else
+                fn_buf_sstr = std::string(&(tmp_fn_buf[0]));
+        }
+    }
+    fileName = fn_buf_sstr.c_str();
+#else
+    char fileName[PST_MAXPATHLEN] = "/tmp/pistacheioXXXXXX";
+    if (!mkstemp(fileName))
+    {
+        std::cerr << "No suitable filename can be generated!" << std::endl;
+    }
 #endif
-        LOGGER("test", "Creating temporary file: " << fileName);
+    LOGGER("test", "Creating temporary file: " << fileName);
 
-        const std::string data("Hello, World!");
-        std::ofstream tmpFile;
-        tmpFile.open(fileName);
-        tmpFile << data;
-        tmpFile.close();
+    const std::string data("Hello, World!");
+    std::ofstream tmpFile;
+    tmpFile.open(fileName);
+    tmpFile << data;
+    tmpFile.close();
 
-        const Pistache::Address address("localhost", Pistache::Port(0));
-        EndpointPtrT server(new Http::Endpoint(address));
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags);
-        server->init(server_opts);
-        server->setHandler(Http::make_handler<FileHandler>(fileName));
-        server->serveThreaded();
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags);
+    server.init(server_opts);
+    server.setHandler(Http::make_handler<FileHandler>(fileName));
+    server.serveThreaded();
 
-        const std::string server_address = "localhost:" + server->getPort().toString();
-        LOGGER("test", "Server address: " << server_address);
+    const std::string server_address = "localhost:" + server.getPort().toString();
+    LOGGER("test", "Server address: " << server_address);
 
-        Http::Experimental::Client client;
-        client.init();
-        auto rb = client.get(server_address);
-        PS_LOG_DEBUG("Calling send");
+    Http::Experimental::Client client;
+    client.init();
+    auto rb = client.get(server_address);
+    PS_LOG_DEBUG("Calling send");
 
-        auto response = rb.send();
-        std::string resultData;
-        PS_LOG_DEBUG("About to wait for response");
-        response.then(
-            [&resultData](Http::Response resp) {
-                PS_LOG_DEBUG_ARGS("Http::Response %d", resp.code());
+    auto response = rb.send();
+    std::string resultData;
+    PS_LOG_DEBUG("About to wait for response");
+    response.then(
+        [&resultData](Http::Response resp) {
+            PS_LOG_DEBUG_ARGS("Http::Response %d", resp.code());
 
-                std::cout << "Response code is " << resp.code() << std::endl;
-                if (resp.code() == Http::Code::Ok)
-                {
-                    resultData = resp.body();
-                }
-            },
-            Async::Throw);
-        PS_LOG_DEBUG("response.then() returned");
+            std::cout << "Response code is " << resp.code() << std::endl;
+            if (resp.code() == Http::Code::Ok)
+            {
+                resultData = resp.body();
+            }
+        },
+        Async::Throw);
+    PS_LOG_DEBUG("response.then() returned");
 
-        const int WAIT_TIME = 2;
-        Async::Barrier<Http::Response> barrier(response);
-        barrier.wait_for(std::chrono::seconds(WAIT_TIME));
+    const int WAIT_TIME = 2;
+    Async::Barrier<Http::Response> barrier(response);
+    barrier.wait_for(std::chrono::seconds(WAIT_TIME));
 
-        client.shutdown();
-        server->shutdown();
+    client.shutdown();
+    server.shutdown();
 
-        LOGGER("test", "Deleting file " << fileName);
-        std::remove(fileName);
+    LOGGER("test", "Deleting file " << fileName);
+    std::remove(fileName);
 
-        ASSERT_EQ(data, resultData);
+    ASSERT_EQ(data, resultData);
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -719,55 +681,55 @@ TEST(http_server_test, server_request_copies_address)
 
     { // encapsulate
 
-        const Pistache::Address address("localhost", Pistache::Port(0));
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        Http::Endpoint server(address);
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags);
-        server.init(server_opts);
-        server.setHandler(Http::make_handler<AddressEchoHandler>());
-        server.serveThreaded();
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags);
+    server.init(server_opts);
+    server.setHandler(Http::make_handler<AddressEchoHandler>());
+    server.serveThreaded();
 
-        const std::string server_address = "localhost:" + server.getPort().toString();
-        LOGGER("test", "Server address: " << server_address);
+    const std::string server_address = "localhost:" + server.getPort().toString();
+    LOGGER("test", "Server address: " << server_address);
 
-        Http::Experimental::Client client;
-        client.init();
-        auto rb       = client.get(server_address);
-        auto response = rb.send();
-        std::string resultData;
-        response.then(
-            [&resultData](Http::Response resp) {
-                LOGGER("client", " Response code is " << resp.code());
-                if (resp.code() == Http::Code::Ok)
-                {
-                    resultData = resp.body();
-                }
-            },
-            Async::Throw);
+    Http::Experimental::Client client;
+    client.init();
+    auto rb       = client.get(server_address);
+    auto response = rb.send();
+    std::string resultData;
+    response.then(
+        [&resultData](Http::Response resp) {
+            LOGGER("client", " Response code is " << resp.code());
+            if (resp.code() == Http::Code::Ok)
+            {
+                resultData = resp.body();
+            }
+        },
+        Async::Throw);
 
-        const int WAIT_TIME = 2;
-        Async::Barrier<Http::Response> barrier(response);
-        barrier.wait_for(std::chrono::seconds(WAIT_TIME));
+    const int WAIT_TIME = 2;
+    Async::Barrier<Http::Response> barrier(response);
+    barrier.wait_for(std::chrono::seconds(WAIT_TIME));
 
-        client.shutdown();
-        server.shutdown();
+    client.shutdown();
+    server.shutdown();
 
-        if (address.family() == AF_INET)
-        {
-            ASSERT_EQ("127.0.0.1", resultData);
-        }
-        else if (address.family() == AF_INET6)
-        {
-            ASSERT_EQ("::1", resultData);
-        }
-        else
-        {
-            ASSERT_TRUE(false);
-        }
+    if (address.family() == AF_INET)
+    {
+        ASSERT_EQ("127.0.0.1", resultData);
+    }
+    else if (address.family() == AF_INET6)
+    {
+        ASSERT_EQ("::1", resultData);
+    }
+    else
+    {
+        ASSERT_TRUE(false);
+    }
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -816,67 +778,67 @@ TEST(http_server_test, response_size_captured)
 
     { // encapsulate
 
-        const Pistache::Address address("localhost", Pistache::Port(0));
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        size_t rsize = 0;
-        Http::Code rcode;
+    size_t rsize = 0;
+    Http::Code rcode;
 
-        Http::Endpoint server(address);
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags);
-        server.init(server_opts);
-        server.setHandler(Http::make_handler<ResponseSizeHandler>(rsize, rcode));
-        server.serveThreaded();
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags);
+    server.init(server_opts);
+    server.setHandler(Http::make_handler<ResponseSizeHandler>(rsize, rcode));
+    server.serveThreaded();
 
-        const std::string server_address = "localhost:" + server.getPort().toString();
-        LOGGER("test", "Server address: " << server_address);
+    const std::string server_address = "localhost:" + server.getPort().toString();
+    LOGGER("test", "Server address: " << server_address);
 
-        // Use the built-in http client, but this test is interested in testing
-        // that the ResponseWriter in the server stashed the correct size and code
-        // values.
-        Http::Experimental::Client client;
-        client.init();
-        auto rb       = client.get(server_address);
-        auto response = rb.send();
-        std::string resultData;
-        response.then(
-            [&resultData](Http::Response resp) {
-                LOGGER("client", "Response code is " << resp.code());
-                if (resp.code() == Http::Code::Ok)
-                {
-                    resultData = resp.body();
-                }
-            },
-            Async::Throw);
+    // Use the built-in http client, but this test is interested in testing
+    // that the ResponseWriter in the server stashed the correct size and code
+    // values.
+    Http::Experimental::Client client;
+    client.init();
+    auto rb       = client.get(server_address);
+    auto response = rb.send();
+    std::string resultData;
+    response.then(
+        [&resultData](Http::Response resp) {
+            LOGGER("client", "Response code is " << resp.code());
+            if (resp.code() == Http::Code::Ok)
+            {
+                resultData = resp.body();
+            }
+        },
+        Async::Throw);
 
-        const int WAIT_TIME = 2;
-        Async::Barrier<Http::Response> barrier(response);
-        barrier.wait_for(std::chrono::seconds(WAIT_TIME));
+    const int WAIT_TIME = 2;
+    Async::Barrier<Http::Response> barrier(response);
+    barrier.wait_for(std::chrono::seconds(WAIT_TIME));
 
-        client.shutdown();
-        server.shutdown();
+    client.shutdown();
+    server.shutdown();
 
-        // Sanity check (stolen from AddressEchoHandler test).
-        if (address.family() == AF_INET)
-        {
-            ASSERT_EQ("127.0.0.1", resultData);
-        }
-        else if (address.family() == AF_INET6)
-        {
-            ASSERT_EQ("::1", resultData);
-        }
-        else
-        {
-            ASSERT_TRUE(false);
-        }
+    // Sanity check (stolen from AddressEchoHandler test).
+    if (address.family() == AF_INET)
+    {
+        ASSERT_EQ("127.0.0.1", resultData);
+    }
+    else if (address.family() == AF_INET6)
+    {
+        ASSERT_EQ("::1", resultData);
+    }
+    else
+    {
+        ASSERT_TRUE(false);
+    }
 
-        LOGGER("test", "Response size is " << rsize);
-        ASSERT_GT(rsize, 1u);
-        ASSERT_LT(rsize, 300u);
-        ASSERT_EQ(rcode, Http::Code::Ok);
+    LOGGER("test", "Response size is " << rsize);
+    ASSERT_GT(rsize, 1u);
+    ASSERT_LT(rsize, 300u);
+    ASSERT_EQ(rcode, Http::Code::Ok);
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -887,19 +849,6 @@ TEST(http_server_test, response_size_captured)
 #endif
 #endif
 }
-
-// This test crashes intermittently in Windows Server 2019 with Visual Studio
-// 2019. It crashes, and silently exits, between client.connect and
-// client.receive. There are hints from debug output that something is
-// happenning in another thread to stamp on the program - but what the problem
-// is has not been determined as Oct/2024. (The nature of the hint - when
-// outputting debug info between client.connect and client.receive, have seen
-// repeatedly that the string being written to stdout is halfway written when
-// the program crashes).
-
-#if (! defined(_MSC_VER)) || (_MSC_VER >= 1930)
-// Last VS 2019 has _MSC_VER 1929, first VS 2022 has _MSC_VER 1930
-// https://en.wikipedia.org/wiki/Microsoft_Visual_C%2B%2B#Internal_version_numbering
 
 TEST(http_server_test, client_request_timeout_on_only_connect_raises_http_408)
 {
@@ -913,40 +862,38 @@ TEST(http_server_test, client_request_timeout_on_only_connect_raises_http_408)
 
     { // encapsulate
 
-        Pistache::Address address("localhost", Pistache::Port(0));
+    Pistache::Address address("localhost", Pistache::Port(0));
 
-        const auto headerTimeout = std::chrono::seconds(2);
+    const auto headerTimeout = std::chrono::seconds(2);
 
-        EndpointPtrT server(new Http::Endpoint(address));
+    Http::Endpoint server(address);
+    auto flags = Tcp::Options::ReuseAddr;
+    auto opts  = Http::Endpoint::options()
+                    .flags(flags)
+                    .headerTimeout(headerTimeout);
 
-        // Http::Endpoint server(address);
-        auto flags = Tcp::Options::ReuseAddr;
-        auto opts  = Http::Endpoint::options()
-                        .flags(flags)
-                        .headerTimeout(headerTimeout);
+    server.init(opts);
+    server.setHandler(Http::make_handler<PingHandler>());
+    server.serveThreaded();
 
-        server->init(opts);
-        server->setHandler(Http::make_handler<PingHandler>());
-        server->serveThreaded();
+    auto port = server.getPort();
+    auto addr = "localhost:" + port.toString();
+    LOGGER("test", "Server address: " << addr)
 
-        auto port = server->getPort();
-        auto addr = "localhost:" + port.toString();
-        LOGGER("test", "Server address: " << addr)
+    TcpClient client;
+    EXPECT_TRUE(client.connect(Pistache::Address("localhost", port))) << client.lastError();
 
-        TcpClient client;
-        EXPECT_TRUE(client.connect(Pistache::Address("localhost", port))) << client.lastError();
+    char recvBuf[1024] = {
+        0,
+    };
+    size_t bytes;
+    EXPECT_TRUE(client.receive(recvBuf, sizeof(recvBuf), &bytes, std::chrono::seconds(5))) << client.lastError();
+    EXPECT_EQ(0, strncmp(recvBuf, ExpectedResponseLine, strlen(ExpectedResponseLine)));
 
-        char recvBuf[1024] = {
-            0,
-        };
-        size_t bytes;
-        EXPECT_TRUE(client.receive(recvBuf, sizeof(recvBuf), &bytes, std::chrono::seconds(5))) << client.lastError();
-        EXPECT_EQ(0, strncmp(recvBuf, ExpectedResponseLine, strlen(ExpectedResponseLine)));
-
-        server->shutdown();
+    server.shutdown();
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -957,8 +904,6 @@ TEST(http_server_test, client_request_timeout_on_only_connect_raises_http_408)
 #endif
 #endif
 }
-
-#endif // of if (! defined(_MSC_VER)) || (_MSC_VER >= 1930))
 
 TEST(http_server_test, client_request_timeout_on_delay_in_header_send_raises_http_408)
 {
@@ -972,45 +917,45 @@ TEST(http_server_test, client_request_timeout_on_delay_in_header_send_raises_htt
 
     { // encapsulate
 
-        Pistache::Address address("localhost", Pistache::Port(0));
+    Pistache::Address address("localhost", Pistache::Port(0));
 
-        const auto headerTimeout = std::chrono::seconds(1);
+    const auto headerTimeout = std::chrono::seconds(1);
 
-        Http::Endpoint server(address);
-        auto flags = Tcp::Options::ReuseAddr;
-        auto opts  = Http::Endpoint::options()
-                        .flags(flags)
-                        .headerTimeout(headerTimeout);
+    Http::Endpoint server(address);
+    auto flags = Tcp::Options::ReuseAddr;
+    auto opts  = Http::Endpoint::options()
+                    .flags(flags)
+                    .headerTimeout(headerTimeout);
 
-        server.init(opts);
-        server.setHandler(Http::make_handler<PingHandler>());
-        server.serveThreaded();
+    server.init(opts);
+    server.setHandler(Http::make_handler<PingHandler>());
+    server.serveThreaded();
 
-        auto port = server.getPort();
-        auto addr = "localhost:" + port.toString();
-        LOGGER("test", "Server address: " << addr);
+    auto port = server.getPort();
+    auto addr = "localhost:" + port.toString();
+    LOGGER("test", "Server address: " << addr);
 
-        const std::string reqStr    = "GET /ping HTTP/1.1\r\n";
-        const std::string headerStr = "Host: localhost\r\nUser-Agent: test\r\n";
+    const std::string reqStr    = "GET /ping HTTP/1.1\r\n";
+    const std::string headerStr = "Host: localhost\r\nUser-Agent: test\r\n";
 
-        TcpClient client;
-        EXPECT_TRUE(client.connect(Pistache::Address("localhost", port))) << client.lastError();
-        EXPECT_TRUE(client.send(reqStr)) << client.lastError();
+    TcpClient client;
+    EXPECT_TRUE(client.connect(Pistache::Address("localhost", port))) << client.lastError();
+    EXPECT_TRUE(client.send(reqStr)) << client.lastError();
 
-        std::this_thread::sleep_for(headerTimeout / 2);
-        EXPECT_TRUE(client.send(headerStr)) << client.lastError();
+    std::this_thread::sleep_for(headerTimeout / 2);
+    EXPECT_TRUE(client.send(headerStr)) << client.lastError();
 
-        char recvBuf[1024] = {
-            0,
-        };
-        size_t bytes;
-        EXPECT_TRUE(client.receive(recvBuf, sizeof(recvBuf), &bytes, std::chrono::seconds(5))) << client.lastError();
-        EXPECT_EQ(0, strncmp(recvBuf, ExpectedResponseLine, strlen(ExpectedResponseLine)));
+    char recvBuf[1024] = {
+        0,
+    };
+    size_t bytes;
+    EXPECT_TRUE(client.receive(recvBuf, sizeof(recvBuf), &bytes, std::chrono::seconds(5))) << client.lastError();
+    EXPECT_EQ(0, strncmp(recvBuf, ExpectedResponseLine, strlen(ExpectedResponseLine)));
 
-        server.shutdown();
+    server.shutdown();
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -1162,43 +1107,43 @@ TEST(http_server_test, client_request_timeout_on_delay_in_body_send_raises_http_
 
     { // encapsulate
 
-        Pistache::Address address("localhost", Pistache::Port(0));
+    Pistache::Address address("localhost", Pistache::Port(0));
 
-        const auto headerTimeout = std::chrono::seconds(1);
-        const auto bodyTimeout   = std::chrono::seconds(2);
+    const auto headerTimeout = std::chrono::seconds(1);
+    const auto bodyTimeout   = std::chrono::seconds(2);
 
-        Http::Endpoint server(address);
-        auto flags = Tcp::Options::ReuseAddr;
-        auto opts  = Http::Endpoint::options()
-                        .flags(flags)
-                        .headerTimeout(headerTimeout)
-                        .bodyTimeout(bodyTimeout);
+    Http::Endpoint server(address);
+    auto flags = Tcp::Options::ReuseAddr;
+    auto opts  = Http::Endpoint::options()
+                    .flags(flags)
+                    .headerTimeout(headerTimeout)
+                    .bodyTimeout(bodyTimeout);
 
-        server.init(opts);
-        server.setHandler(Http::make_handler<PingHandler>());
-        server.serveThreaded();
+    server.init(opts);
+    server.setHandler(Http::make_handler<PingHandler>());
+    server.serveThreaded();
 
-        auto port = server.getPort();
-        auto addr = "localhost:" + port.toString();
-        LOGGER("test", "Server address: " << addr);
+    auto port = server.getPort();
+    auto addr = "localhost:" + port.toString();
+    LOGGER("test", "Server address: " << addr);
 
-        const std::string reqStr = "POST /ping HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\nContent-Length: 32\r\n\r\nabc";
+    const std::string reqStr = "POST /ping HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\nContent-Length: 32\r\n\r\nabc";
 
-        TcpClient client;
-        EXPECT_TRUE(client.connect(Pistache::Address("localhost", port))) << client.lastError();
-        EXPECT_TRUE(client.send(reqStr)) << client.lastError();
+    TcpClient client;
+    EXPECT_TRUE(client.connect(Pistache::Address("localhost", port))) << client.lastError();
+    EXPECT_TRUE(client.send(reqStr)) << client.lastError();
 
-        char recvBuf[1024] = {
-            0,
-        };
-        size_t bytes;
-        EXPECT_TRUE(client.receive(recvBuf, sizeof(recvBuf), &bytes, std::chrono::seconds(5))) << client.lastError();
-        EXPECT_EQ(0, strncmp(recvBuf, ExpectedResponseLine, strlen(ExpectedResponseLine)));
+    char recvBuf[1024] = {
+        0,
+    };
+    size_t bytes;
+    EXPECT_TRUE(client.receive(recvBuf, sizeof(recvBuf), &bytes, std::chrono::seconds(5))) << client.lastError();
+    EXPECT_EQ(0, strncmp(recvBuf, ExpectedResponseLine, strlen(ExpectedResponseLine)));
 
-        server.shutdown();
+    server.shutdown();
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -1222,49 +1167,49 @@ TEST(http_server_test, client_request_no_timeout)
 
     { // encapsulate
 
-        Pistache::Address address("localhost", Pistache::Port(0));
+    Pistache::Address address("localhost", Pistache::Port(0));
 
-        const auto headerTimeout = std::chrono::seconds(2);
-        const auto bodyTimeout   = std::chrono::seconds(4);
+    const auto headerTimeout = std::chrono::seconds(2);
+    const auto bodyTimeout   = std::chrono::seconds(4);
 
-        Http::Endpoint server(address);
-        auto flags = Tcp::Options::ReuseAddr;
-        auto opts  = Http::Endpoint::options()
-                        .flags(flags)
-                        .headerTimeout(headerTimeout)
-                        .bodyTimeout(bodyTimeout);
+    Http::Endpoint server(address);
+    auto flags = Tcp::Options::ReuseAddr;
+    auto opts  = Http::Endpoint::options()
+                    .flags(flags)
+                    .headerTimeout(headerTimeout)
+                    .bodyTimeout(bodyTimeout);
 
-        server.init(opts);
-        server.setHandler(Http::make_handler<PingHandler>());
-        server.serveThreaded();
+    server.init(opts);
+    server.setHandler(Http::make_handler<PingHandler>());
+    server.serveThreaded();
 
-        auto port = server.getPort();
-        auto addr = "localhost:" + port.toString();
-        LOGGER("test", "Server address: " << addr);
+    auto port = server.getPort();
+    auto addr = "localhost:" + port.toString();
+    LOGGER("test", "Server address: " << addr);
 
-        const std::string headerStr = "POST /ping HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\nContent-Length: 8\r\n\r\n";
-        const std::string bodyStr   = "abcdefgh\r\n\r\n";
+    const std::string headerStr = "POST /ping HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\nContent-Length: 8\r\n\r\n";
+    const std::string bodyStr   = "abcdefgh\r\n\r\n";
 
-        TcpClient client;
-        EXPECT_TRUE(client.connect(Pistache::Address("localhost", port))) << client.lastError();
+    TcpClient client;
+    EXPECT_TRUE(client.connect(Pistache::Address("localhost", port))) << client.lastError();
 
-        std::this_thread::sleep_for(headerTimeout / 2);
-        EXPECT_TRUE(client.send(headerStr)) << client.lastError();
+    std::this_thread::sleep_for(headerTimeout / 2);
+    EXPECT_TRUE(client.send(headerStr)) << client.lastError();
 
-        std::this_thread::sleep_for(bodyTimeout / 2);
-        EXPECT_TRUE(client.send(bodyStr)) << client.lastError();
+    std::this_thread::sleep_for(bodyTimeout / 2);
+    EXPECT_TRUE(client.send(bodyStr)) << client.lastError();
 
-        char recvBuf[1024] = {
-            0,
-        };
-        size_t bytes;
-        EXPECT_TRUE(client.receive(recvBuf, sizeof(recvBuf), &bytes, std::chrono::seconds(5))) << client.lastError();
-        EXPECT_NE(0, strncmp(recvBuf, ExpectedResponseLine, strlen(ExpectedResponseLine)));
+    char recvBuf[1024] = {
+        0,
+    };
+    size_t bytes;
+    EXPECT_TRUE(client.receive(recvBuf, sizeof(recvBuf), &bytes, std::chrono::seconds(5))) << client.lastError();
+    EXPECT_NE(0, strncmp(recvBuf, ExpectedResponseLine, strlen(ExpectedResponseLine)));
 
-        server.shutdown();
+    server.shutdown();
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -1356,32 +1301,32 @@ TEST(http_server_test, client_multiple_requests_disconnects_handled)
 
     { // encapsulate
 
-        const Pistache::Address address("localhost", Pistache::Port(0));
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        Http::Endpoint server(address);
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags);
-        server.init(server_opts);
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags);
+    server.init(server_opts);
 
-        std::cout << "Trying to run server...\n";
-        auto waitHelper = std::make_shared<WaitHelper>();
-        auto handler    = Http::make_handler<ClientCountingHandler>(waitHelper);
-        server.setHandler(handler);
-        server.serveThreaded();
+    std::cout << "Trying to run server...\n";
+    auto waitHelper = std::make_shared<WaitHelper>();
+    auto handler    = Http::make_handler<ClientCountingHandler>(waitHelper);
+    server.setHandler(handler);
+    server.serveThreaded();
 
-        const std::string server_address = "localhost:" + server.getPort().toString();
-        std::cout << "Server address: " << server_address << "\n";
+    const std::string server_address = "localhost:" + server.getPort().toString();
+    std::cout << "Server address: " << server_address << "\n";
 
-        const size_t CLIENT_REQUEST_SIZE = 3;
-        clientLogicFunc(CLIENT_REQUEST_SIZE, server_address, 1, 6);
+    const size_t CLIENT_REQUEST_SIZE = 3;
+    clientLogicFunc(CLIENT_REQUEST_SIZE, server_address, 1, 6);
 
-        const bool result = waitHelper->wait(CLIENT_REQUEST_SIZE, std::chrono::seconds(2));
-        server.shutdown();
+    const bool result = waitHelper->wait(CLIENT_REQUEST_SIZE, std::chrono::seconds(2));
+    server.shutdown();
 
-        ASSERT_EQ(result, true);
+    ASSERT_EQ(result, true);
 
     } // end encapsulate
-
+    
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
     const int em_event_count_after = EventMethFns::getEmEventCount();
@@ -1443,6 +1388,7 @@ struct ContentEncodingHandler : public Http::Handler
         writer.send(Http::Code::Ok, client_body);
     }
 };
+
 
 #ifdef PISTACHE_USE_CONTENT_ENCODING_BROTLI
 TEST(http_server_test, server_with_content_encoding_brotli)
@@ -1787,6 +1733,7 @@ TEST(http_server_test, server_with_content_encoding_deflate)
 }
 #endif
 
+
 TEST(http_server_test, http_server_is_not_leaked)
 {
     PS_TIMEDBG_START;
@@ -1795,76 +1742,76 @@ TEST(http_server_test, http_server_is_not_leaked)
 
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
-        const int em_event_count_before               = EventMethFns::getEmEventCount();
-        const int libevent_event_count_before         = EventMethFns::getLibeventEventCount();
-        const int event_meth_epoll_equiv_count_before = EventMethFns::getEventMethEpollEquivCount();
-        const int event_meth_base_count_before        = EventMethFns::getEventMethBaseCount();
-        const int wait_then_get_count_before          = EventMethFns::getWaitThenGetAndEmptyReadyEvsCount();
+    const int em_event_count_before               = EventMethFns::getEmEventCount();
+    const int libevent_event_count_before         = EventMethFns::getLibeventEventCount();
+    const int event_meth_epoll_equiv_count_before = EventMethFns::getEventMethEpollEquivCount();
+    const int event_meth_base_count_before        = EventMethFns::getEventMethBaseCount();
+    const int wait_then_get_count_before          = EventMethFns::getWaitThenGetAndEmptyReadyEvsCount();
 #endif
 #endif
 
-        const auto fds_before = get_open_fds_count();
-        const Pistache::Address address("localhost", Pistache::Port(0));
+    const auto fds_before = get_open_fds_count();
+    const Pistache::Address address("localhost", Pistache::Port(0));
 
-        auto server      = std::make_unique<Http::Endpoint>(address);
-        auto flags       = Tcp::Options::ReuseAddr;
-        auto server_opts = Http::Endpoint::options().flags(flags).threads(4);
-        server->init(server_opts);
-        server->setHandler(Http::make_handler<PingHandler>());
-        server->serveThreaded();
+    auto server      = std::make_unique<Http::Endpoint>(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags).threads(4);
+    server->init(server_opts);
+    server->setHandler(Http::make_handler<PingHandler>());
+    server->serveThreaded();
 
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
-        const int em_event_count_during               = EventMethFns::getEmEventCount();
-        const int libevent_event_count_during         = EventMethFns::getLibeventEventCount();
-        const int event_meth_epoll_equiv_count_during = EventMethFns::getEventMethEpollEquivCount();
-        const int event_meth_base_count_during        = EventMethFns::getEventMethBaseCount();
-        const int wait_then_get_count_during          = EventMethFns::getWaitThenGetAndEmptyReadyEvsCount();
+    const int em_event_count_during               = EventMethFns::getEmEventCount();
+    const int libevent_event_count_during         = EventMethFns::getLibeventEventCount();
+    const int event_meth_epoll_equiv_count_during = EventMethFns::getEventMethEpollEquivCount();
+    const int event_meth_base_count_during        = EventMethFns::getEventMethBaseCount();
+    const int wait_then_get_count_during          = EventMethFns::getWaitThenGetAndEmptyReadyEvsCount();
 #endif
 #endif
 
-        server->shutdown();
-        server.reset();
+    server->shutdown();
+    server.reset();
 
-        const auto fds_after = get_open_fds_count();
-        ASSERT_EQ(fds_before, fds_after);
+    const auto fds_after = get_open_fds_count();
+    ASSERT_EQ(fds_before, fds_after);
 
 #ifdef _USE_LIBEVENT_LIKE_APPLE
 #ifdef DEBUG
-        const int em_event_count_after               = EventMethFns::getEmEventCount();
-        const int libevent_event_count_after         = EventMethFns::getLibeventEventCount();
-        const int event_meth_epoll_equiv_count_after = EventMethFns::getEventMethEpollEquivCount();
-        const int event_meth_base_count_after        = EventMethFns::getEventMethBaseCount();
-        const int wait_then_get_count_after          = EventMethFns::getWaitThenGetAndEmptyReadyEvsCount();
+    const int em_event_count_after               = EventMethFns::getEmEventCount();
+    const int libevent_event_count_after         = EventMethFns::getLibeventEventCount();
+    const int event_meth_epoll_equiv_count_after = EventMethFns::getEventMethEpollEquivCount();
+    const int event_meth_base_count_after        = EventMethFns::getEventMethBaseCount();
+    const int wait_then_get_count_after          = EventMethFns::getWaitThenGetAndEmptyReadyEvsCount();
 
-        PS_LOG_DEBUG_ARGS(
-            "em_event_count_before %d, em_event_count_during %d, "
-            "em_event_count_after %d; "
-            "libevent_event_count_before %d, libevent_event_count_during %d, "
-            "libevent_event_count_after %d; "
-            "event_meth_epoll_equiv_count_before %d, "
-            "event_meth_epoll_equiv_count_during %d, "
-            "event_meth_epoll_equiv_count_after %d; "
-            "event_meth_base_count_before %d, event_meth_base_count_during %d, "
-            "event_meth_base_count_after %d; "
-            "wait_then_get_count_before %d, wait_then_get_count_during %d, "
-            "wait_then_get_count_after %d; ",
-            em_event_count_before, em_event_count_during, em_event_count_after,
-            libevent_event_count_before, libevent_event_count_during,
-            libevent_event_count_after,
-            event_meth_epoll_equiv_count_before,
-            event_meth_epoll_equiv_count_during, event_meth_epoll_equiv_count_after,
-            event_meth_base_count_before, event_meth_base_count_during,
-            event_meth_base_count_after,
-            wait_then_get_count_before, wait_then_get_count_during,
-            wait_then_get_count_after);
+    PS_LOG_DEBUG_ARGS(
+        "em_event_count_before %d, em_event_count_during %d, "
+        "em_event_count_after %d; "
+        "libevent_event_count_before %d, libevent_event_count_during %d, "
+        "libevent_event_count_after %d; "
+        "event_meth_epoll_equiv_count_before %d, "
+        "event_meth_epoll_equiv_count_during %d, "
+        "event_meth_epoll_equiv_count_after %d; "
+        "event_meth_base_count_before %d, event_meth_base_count_during %d, "
+        "event_meth_base_count_after %d; "
+        "wait_then_get_count_before %d, wait_then_get_count_during %d, "
+        "wait_then_get_count_after %d; ",
+        em_event_count_before, em_event_count_during, em_event_count_after,
+        libevent_event_count_before, libevent_event_count_during,
+        libevent_event_count_after,
+        event_meth_epoll_equiv_count_before,
+        event_meth_epoll_equiv_count_during, event_meth_epoll_equiv_count_after,
+        event_meth_base_count_before, event_meth_base_count_during,
+        event_meth_base_count_after,
+        wait_then_get_count_before, wait_then_get_count_during,
+        wait_then_get_count_after);
 
-        ASSERT_EQ(em_event_count_before, em_event_count_after);
-        ASSERT_EQ(libevent_event_count_before, libevent_event_count_after);
-        ASSERT_EQ(event_meth_epoll_equiv_count_before,
-                  event_meth_epoll_equiv_count_after);
-        ASSERT_EQ(event_meth_base_count_before, event_meth_base_count_after);
-        ASSERT_EQ(wait_then_get_count_before, wait_then_get_count_after);
+    ASSERT_EQ(em_event_count_before, em_event_count_after);
+    ASSERT_EQ(libevent_event_count_before, libevent_event_count_after);
+    ASSERT_EQ(event_meth_epoll_equiv_count_before,
+              event_meth_epoll_equiv_count_after);
+    ASSERT_EQ(event_meth_base_count_before, event_meth_base_count_after);
+    ASSERT_EQ(wait_then_get_count_before, wait_then_get_count_after);
 
 #endif
 #endif
