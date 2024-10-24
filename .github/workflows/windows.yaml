@@ -324,8 +324,6 @@ jobs:
 
         $savedpwd=$pwd
 
-        Write-Host "Value of env-DUMMY: $env:DUMMY"
-
         if (! (Get-Command meson -errorAction SilentlyContinue)) {
             if (Test-Path "~/AppData/Local/Packages") {
               cd "~/AppData/Local/Packages";
