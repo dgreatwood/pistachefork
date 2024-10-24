@@ -326,7 +326,7 @@ jobs:
 
         $savedpwd=$pwd
 
-        echo "Value of env-DUMMY: $env:DUMMY"
+        Write-Host "Value of env-DUMMY: $env:DUMMY"
 
         setx "DUMMY" "DUMMYVAL" # Uses User scope by default
 
