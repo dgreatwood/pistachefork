@@ -135,9 +135,6 @@ jobs:
         if (($env:VCPKG_INSTALLATION_ROOT) -and ($env:VCPKG_ROOT) -and (Test-Path "$env:VCPKG_INSTALLATION_ROOT")) {
             $env:VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT
         } # Check this both before and after getting a Visual Studio Developer Prompt
-
-# !!!!!!!!
-       [Environment]::SetEnvironmentVariable("DUMMY","C:\Users\dgrea","User")
         
 
         if ((! (Get-Command pkg-config -errorAction SilentlyContinue)) -or ((which pkg-config) -like "*Strawberry*"))
@@ -326,8 +323,6 @@ jobs:
         $env:CC=$env:CXX
 
         $savedpwd=$pwd
-
-        echo "Value of env-DUMMY: $env:DUMMY"
 
         if (! (Get-Command meson -errorAction SilentlyContinue)) {
             if (Test-Path "~/AppData/Local/Packages") {
