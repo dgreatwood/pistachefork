@@ -296,6 +296,7 @@ jobs:
             }
         }
 
+         setx "DUMMY" "DUMMYVAL" # Uses User scope by default
 
     - uses: actions/checkout@v4
       with:
@@ -325,7 +326,9 @@ jobs:
 
         $savedpwd=$pwd
 
-       [Environment]::SetEnvironmentVariable("DUMMY","C:\Users\dgrea","User")
+        echo "Value of env-DUMMY: $env:DUMMY"
+
+        setx "DUMMY" "DUMMYVAL" # Uses User scope by default
 
         if (! (Get-Command meson -errorAction SilentlyContinue)) {
             if (Test-Path "~/AppData/Local/Packages") {
