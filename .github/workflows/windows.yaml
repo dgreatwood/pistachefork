@@ -136,7 +136,7 @@ jobs:
             $env:VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT
         } # Check this both before and after getting a Visual Studio Developer Prompt
 
-// !!!!!!!!
+# !!!!!!!!
        [Environment]::SetEnvironmentVariable("DUMMY","C:\Users\dgrea","User")
         
 
