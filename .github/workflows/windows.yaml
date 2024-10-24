@@ -296,7 +296,7 @@ jobs:
             }
         }
 
-         setx "DUMMY" "DUMMYVAL" # Uses User scope by default
+        # setx "DUMMY" "DUMMYVAL" # Uses User scope by default
 
     - uses: actions/checkout@v4
       with:
