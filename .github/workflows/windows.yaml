@@ -136,6 +136,7 @@ jobs:
             $env:VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT
         } # Check this both before and after getting a Visual Studio Developer Prompt
         
+        setx "DUMMY" "DUMMYVAL" # Uses User scope by default
 
         if ((! (Get-Command pkg-config -errorAction SilentlyContinue)) -or ((which pkg-config) -like "*Strawberry*"))
         { # meson does not accept the version of pkg-config in Strawberry Perl
