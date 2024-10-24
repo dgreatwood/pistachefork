@@ -135,8 +135,7 @@ jobs:
         if (($env:VCPKG_INSTALLATION_ROOT) -and ($env:VCPKG_ROOT) -and (Test-Path "$env:VCPKG_INSTALLATION_ROOT")) {
             $env:VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT
         } # Check this both before and after getting a Visual Studio Developer Prompt
-
-       [Environment]::SetEnvironmentVariable("DUMMY","C:\Users\dgrea","User")
+        
 
         if ((! (Get-Command pkg-config -errorAction SilentlyContinue)) -or ((which pkg-config) -like "*Strawberry*"))
         { # meson does not accept the version of pkg-config in Strawberry Perl
@@ -295,6 +294,7 @@ jobs:
                 Expand-Archive doxygen.bin.zip -DestinationPath doxygen.bin
             }
         }
+
 
     - uses: actions/checkout@v4
       with:
