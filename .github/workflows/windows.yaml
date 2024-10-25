@@ -84,9 +84,31 @@ jobs:
              if (Test-Path -Path "${env:ProgramFiles(x86)}/Microsoft Visual Studio") {
                   Write-Host "Actually looking in ${env:ProgramFiles(x86)}/Microsoft Visual Studio";
                   cd "${env:ProgramFiles(x86)}/Microsoft Visual Studio";
-                  $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
-                      Sort-Object -Descending -Property LastWriteTime |
-                      Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+                  $dirents=Get-ChildItem -Filter "????" -Name | Sort-Object -Descending -Property Name;
+                  foreach ($itm in $dirents) {
+                      if ("$itm" -match "^\d+$") {
+                          $itm_as_num=$itm/1
+                          if ($itm_as_num -gt 1970) {
+                              if (Test-Path "$itm/Enterprise/Common7/Tools/Launch-VsDevShell.ps1") {
+                              $launch_vs_dev_shell_dir="$pwd\$itm\Enterprise\Common7\Tools";
+                               break
+                          }
+                              elseif (Test-Path "$itm/Professional/Common7/Tools/Launch-VsDevShell.ps1") {
+                                  $launch_vs_dev_shell_dir="$pwd\$itm\Professional\Common7\Tools";
+                                  break
+                              }
+                              elseif (Test-Path "$itm/Community/Common7/Tools/Launch-VsDevShell.ps1") {
+                                  $launch_vs_dev_shell_dir="$pwd\$itm\Community\Common7\Tools";
+                                  break
+                              }
+                          }
+                      }
+                  }
+                  if (! ($launch_vs_dev_shell_dir)) {
+                      $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
+                          Sort-Object -Descending -Property LastWriteTime |
+                          Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+                  }
              }
         }
               
@@ -136,8 +158,6 @@ jobs:
             $env:VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT
         } # Check this both before and after getting a Visual Studio Developer Prompt
         
-        setx "DUMMY" "DUMMYVAL" # Uses User scope by default !!!!!!!!
-
         if ((! (Get-Command pkg-config -errorAction SilentlyContinue)) -or ((which pkg-config) -like "*Strawberry*"))
         { # meson does not accept the version of pkg-config in Strawberry Perl
         
@@ -324,8 +344,6 @@ jobs:
         $env:CC=$env:CXX
 
         $savedpwd=$pwd
-
-        echo "Value of env-DUMMY: $env:DUMMY" # !!!!!!!!
 
         if (! (Get-Command meson -errorAction SilentlyContinue)) {
             if (Test-Path "~/AppData/Local/Packages") {
