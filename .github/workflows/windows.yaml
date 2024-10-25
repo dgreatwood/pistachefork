@@ -72,34 +72,35 @@ jobs:
         #          ide/reference/command-prompt-powershell?view=vs-2022
         
         if (Test-Path -Path "$env:ProgramFiles/Microsoft Visual Studio") {
-          cd "$env:ProgramFiles/Microsoft Visual Studio";
-          $dirents=Get-ChildItem -Filter "????" -Name | Sort-Object -Descending -Property Name;
-          foreach ($itm in $dirents) {
-              if ("$itm" -match "^\d+$") {
-                  $itm_as_num=$itm/1;
-                  if ($itm_as_num -gt 1970) {
-                      if (Test-Path "$itm/Enterprise/Common7/Tools/Launch-VsDevShell.ps1") {
-                      $launch_vs_dev_shell_dir="$pwd\$itm\Enterprise\Common7\Tools";
-                       break
-                  }
-                      elseif (Test-Path "$itm/Professional/Common7/Tools/Launch-VsDevShell.ps1") {
-                          $launch_vs_dev_shell_dir="$pwd\$itm\Professional\Common7\Tools";
-                          break
-                      }
-                      elseif (Test-Path "$itm/Community/Common7/Tools/Launch-VsDevShell.ps1") {
-                          $launch_vs_dev_shell_dir="$pwd\$itm\Community\Common7\Tools";
-                          break
-                      }
-                  }
-              }
-          }
-          if (! ($launch_vs_dev_shell_dir)) {
-          $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
-              Sort-Object -Descending -Property LastWriteTime |
-              Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
-         }
+            cd "$env:ProgramFiles/Microsoft Visual Studio";
+            $dirents=Get-ChildItem -Filter "????" -Name | Sort-Object -Descending -Property Name;
+            foreach ($itm in $dirents) {
+                if ("$itm" -match "^\d+$") {
+                    $itm_as_num=$itm/1;
+                    if ($itm_as_num -gt 1970) {
+                        if (Test-Path "$itm/Enterprise/Common7/Tools/Launch-VsDevShell.ps1") {
+                        $launch_vs_dev_shell_dir="$pwd\$itm\Enterprise\Common7\Tools";
+                         break
+                    }
+                        elseif (Test-Path "$itm/Professional/Common7/Tools/Launch-VsDevShell.ps1") {
+                            $launch_vs_dev_shell_dir="$pwd\$itm\Professional\Common7\Tools";
+                            break
+                        }
+                        elseif (Test-Path "$itm/Community/Common7/Tools/Launch-VsDevShell.ps1") {
+                            $launch_vs_dev_shell_dir="$pwd\$itm\Community\Common7\Tools";
+                            break
+                        }
+                    }
+                }
+            }
+            if (! ($launch_vs_dev_shell_dir)) {
+            $launch_vs_dev_shell_dir = Get-ChildItem -Path "Launch-VsDevShell.ps1" -Recurse |
+                Sort-Object -Descending -Property LastWriteTime |
+                Select -Index 0 | Select -ExpandProperty "FullName" | Split-Path
+            }
+        }
          
-         if ((! ($launch_vs_dev_shell_dir)) -or (! (Test-Path -Path $launch_vs_dev_shell_dir))) {
+        if ((! ($launch_vs_dev_shell_dir)) -or (! (Test-Path -Path $launch_vs_dev_shell_dir))) {
              Write-Host "Launch-VsDevShell.ps1 not found in $env:ProgramFiles/Microsoft Visual Studio";
              if (Test-Path -Path "${env:ProgramFiles(x86)}/Microsoft Visual Studio") {
                   Write-Host "Looking in ${env:ProgramFiles(x86)}/Microsoft Visual Studio";
