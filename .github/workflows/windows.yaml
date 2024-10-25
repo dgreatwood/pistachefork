@@ -87,7 +87,7 @@ jobs:
                   $dirents=Get-ChildItem -Filter "????" -Name | Sort-Object -Descending -Property Name;
                   foreach ($itm in $dirents) {
                       if ("$itm" -match "^\d+$") {
-                          $itm_as_num=$itm/1
+                          $itm_as_num=$itm/1;
                           if ($itm_as_num -gt 1970) {
                               if (Test-Path "$itm/Enterprise/Common7/Tools/Launch-VsDevShell.ps1") {
                               $launch_vs_dev_shell_dir="$pwd\$itm\Enterprise\Common7\Tools";
