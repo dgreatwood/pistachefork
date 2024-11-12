@@ -87,8 +87,6 @@ jobs:
         mv ninja /usr/local/bin
         rm ninja-linux.zip
         pip3 install meson
-        microdnf makecache --refresh
-        microdnf -y install libzstd-devel
 
     - uses: actions/checkout@v3
       with:
@@ -98,8 +96,9 @@ jobs:
       run: |
         if [ ${{ matrix.compiler }} = gcc ]; then CXX=g++; else CXX=clang++ CXX_LD=lld; fi
         export CXX CXX_LD
+        if [[ ${{ matrix.os }} == *redhat* ]]; then PST_USE_ZSTD=false; else PST_USE_ZSTD=true; fi
         meson setup build \
-          -DPISTACHE_BUILD_TESTS=true -DPISTACHE_USE_SSL=${{ matrix.tls }} -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true -DPISTACHE_USE_CONTENT_ENCODING_BROTLI=true -DPISTACHE_USE_CONTENT_ENCODING_ZSTD=true \
+          -DPISTACHE_BUILD_TESTS=true -DPISTACHE_USE_SSL=${{ matrix.tls }} -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true -DPISTACHE_USE_CONTENT_ENCODING_BROTLI=true -DPISTACHE_USE_CONTENT_ENCODING_ZSTD=$PST_USE_ZSTD \
           --buildtype=debug -Db_coverage=true -Db_sanitize=${{ matrix.sanitizer }} -Db_lundef=false \
           || (cat build/meson-logs/meson-log.txt ; false)
       env:
