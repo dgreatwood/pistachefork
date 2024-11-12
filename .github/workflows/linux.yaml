@@ -80,8 +80,6 @@ jobs:
       run: |
         if [ ${{ matrix.compiler }} = gcc ]; then compiler=gcc-c++; else compiler=llvm-toolset; fi
         microdnf -y install $compiler lld pkgconf cmake brotli brotli-devel zstd libzstd-devel openssl-devel zlib-devel libcurl-devel git python3-pip unzip
-# !!!!!!!!
-#        if [ ${{ os }} = 'registry.access.redhat.com/ubi8/ubi-minimal' ]; then microdnf -y install brotli-devel; else microdnf -y install libbrotli; fi
         curl -LO https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip
         unzip ninja-linux.zip
         mv ninja /usr/local/bin
