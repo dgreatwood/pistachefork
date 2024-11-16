@@ -44,6 +44,9 @@ endif
 #
 date_dep = dependency('howardhinnant-date', required: false)
 if not date_dep.found()
+	date_dep = dependency('howard-hinnant-date', required: false)
+endif
+if not date_dep.found()
 	date_dep = dependency('hinnant-date', required: false)
 endif
 if not date_dep.found()
