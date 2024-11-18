@@ -96,9 +96,9 @@ jobs:
 
     - name: Test Homebrew Formula
       run: |
-        homebrew/runformula.sh -y --HEAD
+        homebrew/runformula.sh --skipaudit --HEAD
         if brew list pistache &>/dev/null; then brew remove pistache; fi
-        homebrew/runformula.sh -y
+        homebrew/runformula.sh -y # Use release (not HEAD) and do audit
 
     - name: Coverage
       if: ${{ !contains(matrix.os, 'macos') }}  # Remove this if to do coverage test

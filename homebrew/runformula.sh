@@ -33,6 +33,7 @@ do_error=false
 do_yes=false
 do_usage=false
 use_head=false
+skip_audit=false
 optspec=":hy-:"
 while getopts "$optspec" optchar; do
     case "${optchar}" in
@@ -43,6 +44,9 @@ while getopts "$optspec" optchar; do
                     ;;
                 help)
                     do_usage=true
+                    ;;
+                skipaudit)
+                    skip_audit=true
                     ;;
                 *)
                     echo "Error: Unknown option --${OPTARG}" >&2
@@ -151,17 +155,19 @@ else
 fi
 brew test --verbose pistache
 
-do_audit=$do_yes
-if [ "$do_audit" != true ]; then
-    read -e -p 'brew audit? [y/N]> '
-    if [[ "$REPLY" == [Yy]* ]]; then
-        do_audit=true
+if [ "$skip_audit" != true ]; then
+    do_audit=$do_yes
+    if [ "$do_audit" != true ]; then
+        read -e -p 'brew audit? [y/N]> '
+        if [[ "$REPLY" == [Yy]* ]]; then
+            do_audit=true
+        fi
     fi
-fi
 
-if [ "$do_audit" = true ]; then
-    echo "Auditing brew formula..."
-    brew audit --strict --new --online pistache
-else
-    echo "Skipping audit"
+    if [ "$do_audit" = true ]; then
+        echo "Auditing brew formula..."
+        brew audit --strict --new --online pistache
+    else
+        echo "Skipping audit"
+    fi
 fi
