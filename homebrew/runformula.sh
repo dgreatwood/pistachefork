@@ -34,7 +34,8 @@ do_yes=false
 do_usage=false
 use_head=false
 skip_audit=false
-optspec=":hy-:"
+do_force=false
+optspec=":hfy-:"
 while getopts "$optspec" optchar; do
     case "${optchar}" in
         -)
@@ -48,6 +49,9 @@ while getopts "$optspec" optchar; do
                 skipaudit)
                     skip_audit=true
                     ;;
+                force)
+                    do_force=true
+                    ;;
                 *)
                     echo "Error: Unknown option --${OPTARG}" >&2
                     do_error=true
@@ -59,6 +63,9 @@ while getopts "$optspec" optchar; do
             ;;
         y)
             do_yes=true
+            ;;
+        f)
+            do_force=true
             ;;
         *)
             echo "Error: Non-option argument: '-${OPTARG}'" >&2
@@ -72,10 +79,10 @@ if [ "$do_error" = true ]; then do_usage=true; fi
 
 if [ "$do_usage" = true ]; then
     echo "Usage: $(basename "$0") [-h] [--help] [-y] [--HEAD]"
-    echo " -h            Prints usage message, then exits"
-    echo " --help        Prints usage message, then exits"
+    echo " -h, --help    Prints usage message, then exits"
     echo " --HEAD        Tests with head of pistache master"
     echo "               (otherwise, tests with pistache release)"
+    echo " -f, --force   Test even if forumla already up-to-date"
     echo " -y            Answer yes to questions (i.e. do audit)"
     echo " --skipaudit   Skips brew audit; overrides -y for audit question"
     if [ "$do_yes" = true ] || [ "$do_head" = true ]; then
@@ -121,28 +128,30 @@ MY_SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$pist_form_file" ]; then
 
     if cmp --silent -- "$MY_SCRIPT_DIR/pistache.rb" "$pist_form_file"; then
-        echo "$pist_form_file is already up to date, exiting"
-        if [ "$use_head" != true ]; then
-            if brew list pistache &>/dev/null; then
-                echo "If you like: brew remove pistache; brew install --build-from-source pistache"
+        if [ "$do_force" != true ]; then
+            echo "$pist_form_file is already up to date, exiting"
+            if [ "$use_head" != true ]; then
+                if brew list pistache &>/dev/null; then
+                    echo "You can try: brew remove pistache; brew install --build-from-source pistache"
+                else
+                    echo "You can try: brew install --build-from-source pistache"
+                fi
             else
-                echo "If you like: brew install --build-from-source pistache"
+                if brew list pistache &>/dev/null; then
+                    echo "You can try: brew remove pistache; brew install --HEAD pistache"
+                else
+                    echo "You can try: brew install --HEAD pistache"
+                fi
             fi
-        else
-            if brew list pistache &>/dev/null; then
-                echo "If you like: brew remove pistache; brew install --HEAD pistache"
-            else
-                echo "If you like: brew install --HEAD pistache"
-            fi
+            exit 0
         fi
-        exit 0
+    else
+        pist_form_bak="$MY_SCRIPT_DIR/pistache.rb.bak"
+        echo "Overwriting $pist_form_file"
+        echo "Saving prior to $pist_form_bak"
+        cp "$pist_form_file" "$pist_form_bak"
+        cp "$MY_SCRIPT_DIR/pistache.rb" "$pist_form_file"
     fi
-
-    pist_form_bak="$MY_SCRIPT_DIR/pistache.rb.bak"
-    echo "Overwriting $pist_form_file"
-    echo "Saving prior to $pist_form_bak"
-    cp "$pist_form_file" "$pist_form_bak"
-    cp "$MY_SCRIPT_DIR/pistache.rb" "$pist_form_file"
 else
     echo "Copying pistache.rb to $pist_form_dir/"
     cp "$MY_SCRIPT_DIR/pistache.rb" "$pist_form_file"

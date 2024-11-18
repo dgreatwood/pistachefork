@@ -98,7 +98,10 @@ jobs:
       run: |
         homebrew/runformula.sh --skipaudit --HEAD
         if brew list pistache &>/dev/null; then brew remove pistache; fi
-        homebrew/runformula.sh -y # Use release (not HEAD) and do audit
+
+        # Use release (not HEAD), do audit (-y), and force even if pistache
+        # already installed
+        homebrew/runformula.sh -y --force
 
     - name: Coverage
       if: ${{ !contains(matrix.os, 'macos') }}  # Remove this if to do coverage test
