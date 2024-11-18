@@ -12,9 +12,11 @@ on:
   push:
     branches:
     - master
+    - brewFormula
   pull_request:
     branches:
     - master
+    - brewFormula
 
 defaults:
   run:
@@ -92,6 +94,12 @@ jobs:
       # Use the following to run just a single test (e.g. http_server_test)
       # run: build/tests/run_http_server_test
 
+    - name: Test Homebrew Formula
+      run: |
+        homebrew/runformula.sh -y --HEAD
+        if brew list pistache &>/dev/null; then brew remove pistache; fi
+        homebrew/runformula.sh -y
+
     - name: Coverage
       if: ${{ !contains(matrix.os, 'macos') }}  # Remove this if to do coverage test
       run: |
@@ -115,4 +123,3 @@ jobs:
         sha256sum --check codecov.SHA256SUM
         chmod +x codecov
         ./codecov
-

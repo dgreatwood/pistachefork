@@ -22,13 +22,65 @@
 #    shasum -a 256 <filename.tar.gz>
 #  Note: brew formula audit prefers tarball to zip file.
 
-if [ $# -gt 0 ]; then
-    if [ $# -gt 1 ] || [ "$1" != "--HEAD" ]; then
-        echo "Usage: $(basename "$0") [-h] [--help] [--HEAD]"
-        echo "       With --HEAD, tests with head of pistache master"
-        echo "       Otherwise, tests with pistache release"
-        exit 0
+# For option parsing, see:
+#   https://stackoverflow.com/questions/402377/using-getopts-to-process-long-and-short-command-line-options
+#     (The answer that begins "The Bash builtin getopts function can be...")
+#   And:
+#     https://linuxsimply.com/bash-scripting-tutorial/functions/script-argument/bash-getopts/
+#   MAKE SURE below that you set optspec to correctly reflect short options
+
+do_error=false
+do_yes=false
+do_usage=false
+use_head=false
+optspec=":hy-:"
+while getopts "$optspec" optchar; do
+    case "${optchar}" in
+        -)
+            case "${OPTARG}" in
+                HEAD)
+                    use_head=true
+                    ;;
+                help)
+                    do_usage=true
+                    ;;
+                *)
+                    echo "Error: Unknown option --${OPTARG}" >&2
+                    do_error=true
+                    break
+                    ;;
+            esac;;
+        h)
+            do_usage=true
+            ;;
+        y)
+            do_yes=true
+            ;;
+        *)
+            echo "Error: Non-option argument: '-${OPTARG}'" >&2
+            do_error=true
+            break
+            ;;
+    esac
+done
+
+if [ "$do_error" = true ]; then do_usage=true; fi
+
+if [ "$do_usage" = true ]; then
+    echo "Usage: $(basename "$0") [-h] [--help] [-y] [--HEAD]"
+    echo " -h        Prints usage message, then exits"
+    echo " --help    Prints usage message, then exits"
+    echo " --HEAD    Tests with head of pistache master"
+    echo "           (otherwise, tests with pistache release)"
+    echo " -y        Answer yes to questions (i.e. do audit)"
+    if [ "$do_yes" = true ] || [ "$do_head" = true ]; then
+        echo "Error: Usage requested with other options"
+        do_error=true
     fi
+    if [ "$do_error" = true ]; then
+        exit 1
+    fi
+    exit 0
 fi
 
 if ! type "brew" > /dev/null; then
@@ -65,7 +117,7 @@ if [ -f "$pist_form_file" ]; then
 
     if cmp --silent -- "$MY_SCRIPT_DIR/pistache.rb" "$pist_form_file"; then
         echo "$pist_form_file is already up to date, exiting"
-        if [ "$1" != "--HEAD" ]; then
+        if [ "$use_head" != true ]; then
             if brew list pistache &>/dev/null; then
                 echo "If you like: brew remove pistache; brew install --build-from-source pistache"
             else
@@ -92,15 +144,23 @@ else
 fi
 
 if brew list pistache &>/dev/null; then brew remove pistache; fi
-if [[ "$1" == "--HEAD" ]]; then
+if [ "$use_head" = true ]; then
     brew install --HEAD pistache
 else
     brew install --build-from-source pistache
 fi
 brew test --verbose pistache
 
-read -e -p 'brew audit? [y/N]> '
-if [[ "$REPLY" == [Yy]* ]]; then
+do_audit=$do_yes
+if [ "$do_audit" != true ]; then
+    read -e -p 'brew audit? [y/N]> '
+    if [[ "$REPLY" == [Yy]* ]]; then
+        do_audit=true
+    fi
+fi
+
+if [ "$do_audit" = true ]; then
+    echo "Auditing brew formula..."
     brew audit --strict --new --online pistache
 else
     echo "Skipping audit"
