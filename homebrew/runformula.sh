@@ -16,6 +16,20 @@
 # Also:
 #  https://docs.github.com/en/repositories/releasing-projects-on-github/
 #      managing-releases-in-a-repository
+#
+#  And to make a sha-256 from a release, Go to Pistache home page ->
+#  Releases and download the tarball for the release. Then:
+#    shasum -a 256 <filename.tar.gz>
+#  Note: brew formula audit prefers tarball to zip file.
+
+if [ $# -gt 0 ]; then
+    if [ $# -gt 1 ] || [ "$1" != "--HEAD" ]; then
+        echo "Usage: $(basename "$0") [-h] [--help] [--HEAD]"
+        echo "       With --HEAD, tests with head of pistache master"
+        echo "       Otherwise, tests with pistache release"
+        exit 0
+    fi
+fi
 
 if ! type "brew" > /dev/null; then
     echo "brew not found; brew is required to proceed"
@@ -48,8 +62,22 @@ pist_form_file="$pist_form_dir/pistache.rb"
 MY_SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ -f "$pist_form_file" ]; then
+
     if cmp --silent -- "$MY_SCRIPT_DIR/pistache.rb" "$pist_form_file"; then
         echo "$pist_form_file is already up to date, exiting"
+        if [ "$1" != "--HEAD" ]; then
+            if brew list pistache &>/dev/null; then
+                echo "If you like: brew remove pistache; brew install --build-from-source pistache"
+            else
+                echo "If you like: brew install --build-from-source pistache"
+            fi
+        else
+            if brew list pistache &>/dev/null; then
+                echo "If you like: brew remove pistache; brew install --HEAD pistache"
+            else
+                echo "If you like: brew install --HEAD pistache"
+            fi
+        fi
         exit 0
     fi
 
@@ -64,8 +92,11 @@ else
 fi
 
 if brew list pistache &>/dev/null; then brew remove pistache; fi
-# brew install --HEAD pistache # !!!!!!!!
-brew install --build-from-source pistache
+if [[ "$1" == "--HEAD" ]]; then
+    brew install --HEAD pistache
+else
+    brew install --build-from-source pistache
+fi
 brew test --verbose pistache
 
 read -e -p 'brew audit? [y/N]> '

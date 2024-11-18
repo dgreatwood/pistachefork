@@ -3,27 +3,27 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-#
+
 class Pistache < Formula
   desc "Modern, fast, elegant HTTP + REST C++17 framework with pleasant API"
   homepage "https://github.com/pistacheio/pistache"
   # !!!!!!!! CHANGE THIS to a https://github.com/pistacheio release
-  url "https://github.com/dgreatwood/pistachefork/archive/refs/tags/v0.4.19.zip"
-  sha256 "548907e8eeec1e5c08db5fe96e41f8c94e996640c78a472fa4bd544470fb4498"
+  url "https://github.com/dgreatwood/pistachefork/archive/refs/tags/v0.4.20.tar.gz"
+  sha256 "185b31a62d9bbb0f0a04e2768c62415bafb9037e62826ecd5fb4edaf1ba44d0b"
   license "Apache-2.0"
   head "https://github.com/pistacheio/pistache.git", branch: "master"
 
-  depends_on "meson" => :build
-  depends_on "ninja" => :build
+  depends_on "brotli" => :build
   depends_on "cmake" => :build # Required so meson finds hinnant-date
+  depends_on "cpp-httplib" => :build
   depends_on "googletest" => :build
-  depends_on "rapidjson" => :build
   depends_on "howard-hinnant-date" => :build
   depends_on "libevent" => :build
-  depends_on "brotli" => :build
-  depends_on "zstd" => :build
+  depends_on "meson" => :build
+  depends_on "ninja" => :build
   depends_on "pkg-config" => :build
-  depends_on "cpp-httplib" => :build
+  depends_on "rapidjson" => :build
+  depends_on "zstd" => :build
 
   def install
     system "meson", "setup", "build",
