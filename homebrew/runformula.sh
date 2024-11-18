@@ -72,11 +72,12 @@ if [ "$do_error" = true ]; then do_usage=true; fi
 
 if [ "$do_usage" = true ]; then
     echo "Usage: $(basename "$0") [-h] [--help] [-y] [--HEAD]"
-    echo " -h        Prints usage message, then exits"
-    echo " --help    Prints usage message, then exits"
-    echo " --HEAD    Tests with head of pistache master"
-    echo "           (otherwise, tests with pistache release)"
-    echo " -y        Answer yes to questions (i.e. do audit)"
+    echo " -h            Prints usage message, then exits"
+    echo " --help        Prints usage message, then exits"
+    echo " --HEAD        Tests with head of pistache master"
+    echo "               (otherwise, tests with pistache release)"
+    echo " -y            Answer yes to questions (i.e. do audit)"
+    echo " --skipaudit   Skips brew audit; overrides -y for audit question"
     if [ "$do_yes" = true ] || [ "$do_head" = true ]; then
         echo "Error: Usage requested with other options"
         do_error=true
