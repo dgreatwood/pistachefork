@@ -6,7 +6,7 @@
 #   https://docs.github.com/en/actions/writing-workflows/choosing-where-your-workflow-runs/choosing-the-runner-for-a-job
 #   https://github.com/actions/runner-images/blob/main/images/macos/macos-14-Readme.md
 
-name: macOS libevent
+name: Homebrew Formula
 
 on:
   push:
@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   macos:
-    name: macOS with Libevent
+    name: Homebrew Formula
 
     strategy:
       fail-fast: false
@@ -68,7 +68,12 @@ jobs:
         export CC
 
         if [ ${{ matrix.compiler }} = gcc ]; then
+            echo "Running: gcc --version"
             gcc --version
+            echo ""
+            echo "Running: gcc-14 --version"
+            gcc-14 --version
+            echo ""
         fi
 
         homebrew/runformula.sh -y --force --HEAD
