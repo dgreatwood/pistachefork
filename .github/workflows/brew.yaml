@@ -60,8 +60,7 @@ jobs:
       with:
         submodules: true
 
-    - name: Configure
-      id: step_one
+    - name: Test Homebrew
       run: |
         if [ ${{ matrix.compiler }} = gcc ]; then
             gcc_lns=`brew list gcc | grep "bin/g++-[0-9][0-9]" | sort -r`
@@ -71,35 +70,13 @@ jobs:
             gcc_lns=`brew list gcc | grep "bin/gcc-[0-9][0-9]" | sort -r`
             gcc_fstln=`echo "$gcc_lns" | head -1`
             CC=`basename $gcc_fstln`
-
-            echo "CXX is $CXX; CC is $CC"
-            echo "Running: $CXX --version"
-            $CXX --version
-            echo ""
-            echo "Running: $CC --version"
-            $CC --version
-            echo ""
         else
             CXX=clang++
             CC=CXX
         fi
-
         export CXX
         export CC
-
-        echo "my_cxx=${CXX}" >> "$GITHUB_ENV"
-        echo "my_cc=${CC}" >> "$GITHUB_ENV"
-
-    - name: Test Homebrew
-      id: step_two
-      run: |
         echo "CXX is $CXX; CC is $CC"
-        echo "Running: $CXX --version"
-        $CXX --version
-        echo ""
-        echo "Running: $CC --version"
-        $CC --version
-        echo ""
 
         homebrew/runformula.sh -y --force --HEAD
         #   -y         Say "yes" to doing the brew audit
