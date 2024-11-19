@@ -93,9 +93,6 @@ jobs:
     - name: Test Homebrew
       id: step_three
       run: |
-        export CXX="${{ needs.macos.outputs.my_cxx }}"
-        export CC="${{ needs.macos.outputs.my_cc }}"
-
         echo "CXX is $CXX; CC is $CC"
         echo "Running: $CXX --version"
         $CXX --version
