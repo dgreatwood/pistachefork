@@ -85,9 +85,9 @@ jobs:
         echo "my_cxx=${CXX}" >> $GITHUB_OUTPUT
         echo "my_cc=${CC}" >> $GITHUB_OUTPUT
 
-    outputs:
-      my_cxx: ${{ steps.Configure.outputs.my_cxx }}
-      my_cc: ${{ steps.Configure.outputs.my_cc }}
+#    outputs:
+#      my_cxx: ${{ steps.Configure.outputs.my_cxx }}
+#      my_cc: ${{ steps.Configure.outputs.my_cc }}
 
     - uses: actions/checkout@v4
       with:
