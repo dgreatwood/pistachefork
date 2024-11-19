@@ -56,6 +56,10 @@ jobs:
         # result of being blocked by the software that is already
         # installed.
 
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
     - name: Configure
       id: step_one
       run: |
@@ -86,12 +90,8 @@ jobs:
         echo "my_cxx=${CXX}" >> "$GITHUB_ENV"
         echo "my_cc=${CC}" >> "$GITHUB_ENV"
 
-    - uses: actions/checkout@v4
-      with:
-        submodules: true
-
     - name: Test Homebrew
-      id: step_three
+      id: step_two
       run: |
         echo "CXX is $CXX; CC is $CC"
         echo "Running: $CXX --version"
