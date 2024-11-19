@@ -67,6 +67,10 @@ jobs:
         export CXX
         export CC
 
+        if [ ${{ matrix.compiler }} = gcc ]; then
+            gcc --version
+        fi
+
         homebrew/runformula.sh -y --force --HEAD
         #   -y         Say "yes" to doing the brew audit
         #   --force    Run even if pistache brew formula unchanged
