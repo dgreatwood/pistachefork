@@ -82,9 +82,12 @@ jobs:
         export CXX
         export CC
 
-      env:
-        CC: $CC
-        CXX: $CXX
+        echo "my_cxx=${CXX}" >> $GITHUB_OUTPUT
+        echo "my_cc=${CC}" >> $GITHUB_OUTPUT
+
+      outputs:
+        my_cxx: ${{ steps.Configure.outputs.my_cxx }}
+        my_cc: ${{ steps.Configure.outputs.my_cc }}
 
     - uses: actions/checkout@v4
       with:
@@ -92,7 +95,9 @@ jobs:
 
     - name: Test Homebrew
       run: |
-        if [ ${{ matrix.compiler }} = gcc ]; then
+        export CXX="${{ needs.macos.outputs.my_cxx }}"
+        export CC="${{ needs.macos.outputs.my_cc }}"
+
             echo "CXX is $CXX; CC is $CC"
             echo "Running: $CXX --version"
             $CXX --version
@@ -100,7 +105,6 @@ jobs:
             echo "Running: $CC --version"
             $CC --version
             echo ""
-        fi
 
         homebrew/runformula.sh -y --force --HEAD
         #   -y         Say "yes" to doing the brew audit
