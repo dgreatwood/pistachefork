@@ -83,8 +83,8 @@ jobs:
         export CC
 
       env:
-        CC: ${{ $CC }}
-        CXX: ${{ $CXX }}
+        CC: ${{ CC }}
+        CXX: ${{ CXX }}
 
     - uses: actions/checkout@v4
       with:
