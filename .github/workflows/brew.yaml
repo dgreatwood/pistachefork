@@ -57,6 +57,7 @@ jobs:
         # installed.
 
     - name: Configure
+      id: step_one
       run: |
         if [ ${{ matrix.compiler }} = gcc ]; then
             gcc_lns=`brew list gcc | grep "bin/g++-[0-9][0-9]" | sort -r`
@@ -90,6 +91,7 @@ jobs:
         submodules: true
 
     - name: Test Homebrew
+      id: step_three
       run: |
         export CXX="${{ needs.macos.outputs.my_cxx }}"
         export CC="${{ needs.macos.outputs.my_cc }}"
