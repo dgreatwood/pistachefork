@@ -56,12 +56,7 @@ jobs:
         # result of being blocked by the software that is already
         # installed.
 
-    - uses: actions/checkout@v4
-      with:
-        submodules: true
-
-    - name: Test Homebrew
-      run: |
+    - name: Configure
         if [ ${{ matrix.compiler }} = gcc ]; then
             gcc_lns=`brew list gcc | grep "bin/g++-[0-9][0-9]" | sort -r`
             gcc_fstln=`echo "$gcc_lns" | head -1`
@@ -83,9 +78,28 @@ jobs:
             CC=CXX
         fi
 
-
         export CXX
         export CC
+
+      env:
+        CC: ${{ $CC }}
+        CXX: ${{ $CXX }}
+
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Test Homebrew
+      run: |
+        if [ ${{ matrix.compiler }} = gcc ]; then
+            echo "CXX is $CXX; CC is $CC"
+            echo "Running: $CXX --version"
+            $CXX --version
+            echo ""
+            echo "Running: $CC --version"
+            $CC --version
+            echo ""
+        fi
 
         homebrew/runformula.sh -y --force --HEAD
         #   -y         Say "yes" to doing the brew audit
