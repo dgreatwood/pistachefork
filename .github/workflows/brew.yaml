@@ -62,11 +62,6 @@ jobs:
 
     - name: Test Homebrew
       run: |
-        if [ ${{ matrix.compiler }} = gcc ]; then CXX=g++; else CXX=clang++; fi
-        CC=CXX
-        export CXX
-        export CC
-
         if [ ${{ matrix.compiler }} = gcc ]; then
             echo "Running: gcc --version"
             gcc --version
@@ -74,7 +69,22 @@ jobs:
             echo "Running: gcc-14 --version"
             gcc-14 --version
             echo ""
+
+            gcc_lns=`brew list gcc | grep "bin/g++-[0-9][0-9]" | sort -r`
+            gcc_fstln=`echo "$gcc_lns" | head -1`
+            CXX=`basename $gcc_fstln`
+
+            gcc_lns=`brew list gcc | grep "bin/gcc-[0-9][0-9]" | sort -r`
+            gcc_fstln=`echo "$gcc_lns" | head -1`
+            CC=`basename $gcc_fstln`
+        else
+            CXX=clang++
+            CC=CXX
         fi
+
+        echo "CXX is $CXX; CC is $CC"
+        export CXX
+        export CC
 
         homebrew/runformula.sh -y --force --HEAD
         #   -y         Say "yes" to doing the brew audit
