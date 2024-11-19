@@ -29,6 +29,8 @@
 #     https://linuxsimply.com/bash-scripting-tutorial/functions/script-argument/bash-getopts/
 #   MAKE SURE below that you set optspec to correctly reflect short options
 
+MY_SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 do_error=false
 do_yes=false
 do_usage=false
@@ -123,8 +125,6 @@ if [ ! -d "$pist_form_dir" ]; then
 fi
 pist_form_file="$pist_form_dir/pistache.rb"
 
-MY_SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 if [ -f "$pist_form_file" ]; then
 
     if cmp --silent -- "$MY_SCRIPT_DIR/pistache.rb" "$pist_form_file"; then
@@ -153,7 +153,7 @@ if [ -f "$pist_form_file" ]; then
         cp "$MY_SCRIPT_DIR/pistache.rb" "$pist_form_file"
     fi
 else
-    echo "Copying pistache.rb to $pist_form_dir/"
+    echo "Copying $MY_SCRIPT_DIR/pistache.rb to $pist_form_file"
     cp "$MY_SCRIPT_DIR/pistache.rb" "$pist_form_file"
 fi
 
