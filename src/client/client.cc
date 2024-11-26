@@ -13,6 +13,7 @@
 #include <pistache/winornix.h>
 
 #include <pistache/client.h>
+#include <pistache/sslclient.h>
 #include <pistache/common.h>
 #include <pistache/eventmeth.h>
 #include <pistache/http.h>
@@ -134,8 +135,9 @@ namespace Pistache::Http::Experimental
         {
             using Http::crlf;
 
+            bool is_https           = false;
             const auto& res         = request.resource();
-            const auto [host, path] = splitUrl(res);
+            const auto [host, path] = splitUrl(res, &is_https);
             const auto& body        = request.body();
             const auto& query       = request.query();
 
@@ -151,8 +153,12 @@ namespace Pistache::Http::Experimental
             writeCookies(streamBuf, request.cookies());
             writeHeaders(streamBuf, request.headers());
 
+            std::string host_str(std::string(host) +
+                                 std::string(is_https ? ":443" : ""));
+
             writeHeader<Http::Header::UserAgent>(streamBuf, UA);
-            writeHeader<Http::Header::Host>(streamBuf, std::string(host));
+            writeHeader<Http::Header::Host>(streamBuf, host_str);
+
             if (!body.empty())
             {
                 writeHeader<Http::Header::ContentLength>(streamBuf, body.size());
@@ -399,7 +405,7 @@ namespace Pistache::Http::Experimental
         if (!conn)
             throw std::runtime_error("Send request error");
 
-        auto fd = conn->fd();
+        Fd fd(conn->fdDirectOrFromSsl());
         if (fd == PS_FD_EMPTY)
         {
             PS_LOG_DEBUG_ARGS("Connection %p has empty fd", conn.get());
@@ -407,14 +413,33 @@ namespace Pistache::Http::Experimental
             conn->handleError("Could not send request");
             return;
         }
+        // fd is either the direct fd of 'conn', or, in the ssl case, the fd of
+        // the SslConnection
 
         PST_SSIZE_T totalWritten = 0;
         for (;;)
         {
             const char* data               = buffer.data() + totalWritten;
             const PST_SSIZE_T len          = buffer.size() - totalWritten;
-            const PST_SSIZE_T bytesWritten = PST_SOCK_SEND(GET_ACTUAL_FD(fd),
-                                                           data, len, 0);
+            PST_SSIZE_T bytesWritten = -1;
+
+            if (conn->isSsl())
+            {
+                PS_LOG_DEBUG_ARGS("SSL send: fd %" PIST_QUOTE(PS_FD_PRNTFCD)
+                                  ", ptr %p, len %d",
+                                  fd, data, len);
+                bytesWritten = conn->fdOrSslConn()->getSslConn()->
+                    sslRawSend(data, len);
+                PS_LOG_DEBUG_ARGS("SSL sent: res %d, fd %"
+                                  PIST_QUOTE(PS_FD_PRNTFCD)
+                                  ", data %p, len %d",
+                                  bytesWritten, fd, data, len);
+            }
+            else
+            {
+                bytesWritten = PST_SOCK_SEND(GET_ACTUAL_FD(fd), data, len, 0);
+            }
+
             if (bytesWritten < 0)
             {
                 if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -481,7 +506,7 @@ namespace Pistache::Http::Experimental
                 continue;
             }
 
-            Fd fd = conn->fd();
+            Fd fd = conn->fdDirectOrFromSsl();
             if (fd == PS_FD_EMPTY)
             {
                 PS_LOG_DEBUG_ARGS("Connection %p has empty fd", conn.get());
@@ -489,35 +514,67 @@ namespace Pistache::Http::Experimental
                 continue;
             }
 
-            PS_LOG_DEBUG_ARGS("Calling ::connect fs %d", GET_ACTUAL_FD(fd));
-
-            int res = PST_SOCK_CONNECT(GET_ACTUAL_FD(fd), data->getAddr(), data->addr_len);
-            PST_DBG_DECL_SE_ERR_P_EXTRA;
-            PS_LOG_DEBUG_ARGS("::connect res %d, errno on fail %d (%s)",
-                              res, (res < 0) ? errno : 0,
-                              (res < 0) ?
-                              PST_STRERROR_R_ERRNO : "success");
-
-            if ((res == 0) || ((res == -1) && (errno == EINPROGRESS))
-                #ifdef _IS_WINDOWS
-                || ((res == -1) && (errno == EWOULDBLOCK))
-                // In Linux, EWOULDBLOCK can be set by ::connect, but only for
-                // Unix domain sockets (i.e. sockets being used for
-                // inter-process communication) which is not our situation
-                //
-                // In Windows, EWOULDBLOCK is typically set here for
-                // non-blocking sockets
-                #endif
-                )
+            if (conn->isSsl())
             {
-                reactor()->registerFdOneShot(key(), fd,
-                                             NotifyOn::Write | NotifyOn::Hangup | NotifyOn::Shutdown);
+                std::shared_ptr<SslConnection> ssl_conn(
+                    conn->fdOrSslConn()->getSslConn());
+                if (!ssl_conn)
+                {
+                    PST_DBG_DECL_SE_ERR_P_EXTRA;
+                    PS_LOG_DEBUG_ARGS("getSslConn, errno on fail %d (%s)",
+                                      errno, PST_STRERROR_R_ERRNO);
+
+                    data->reject(Error::system(
+                                    "Failed to connect, null ssl_conn"));
+                    return;
+                }
+
+                reactor()->registerFdOneShot(
+                    key(), fd,
+                    NotifyOn::Write | NotifyOn::Hangup | NotifyOn::Shutdown);
+
+                // connected synchronously
+                PS_LOG_DEBUG("Resolving SSL connection");
+                data->resolve();
+
+                // We are connected, we can start reading data now
+                reactor()->modifyFd(key(), fd, NotifyOn::Read);
             }
             else
             {
-                data->reject(Error::system("Failed to connect"));
-                continue;
+                PS_LOG_DEBUG_ARGS("Calling ::connect fs %d",
+                                  GET_ACTUAL_FD(fd));
+
+                int res = PST_SOCK_CONNECT(GET_ACTUAL_FD(fd),
+                                           data->getAddr(), data->addr_len);
+                PST_DBG_DECL_SE_ERR_P_EXTRA;
+                PS_LOG_DEBUG_ARGS("::connect res %d, errno on fail %d (%s)",
+                                  res, (res < 0) ? errno : 0,
+                                  (res < 0) ?
+                                  PST_STRERROR_R_ERRNO : "success");
+
+                if ((res == 0) || ((res == -1) && (errno == EINPROGRESS))
+                    #ifdef _IS_WINDOWS
+                    || ((res == -1) && (errno == EWOULDBLOCK))
+                    // In Linux, EWOULDBLOCK can be set by ::connect, but only
+                    // for Unix domain sockets (i.e. sockets being used for
+                    // inter-process communication) which is not our situation
+                    //
+                    // In Windows, EWOULDBLOCK is typically set here for
+                    // non-blocking sockets
+                    #endif
+                    )
+                {
+                    reactor()->registerFdOneShot(key(), fd,
+                                                 NotifyOn::Write | NotifyOn::Hangup | NotifyOn::Shutdown);
+                }
+                else
+                {
+                    data->reject(Error::system("Failed to connect"));
+                    continue;
+                }
             }
+
             connections.insert(std::make_pair(fd, std::move(*data)));
         }
     }
@@ -592,19 +649,38 @@ namespace Pistache::Http::Experimental
             auto connection       = connIt->second.connection.lock();
             if (connection)
             {
-                Fd conn_fd = connection->fd();
+                auto conn_fd = connection->fdDirectOrFromSsl();
                 if (conn_fd == PS_FD_EMPTY)
                 {
                     PS_LOG_DEBUG_ARGS("Connection %p has empty fd",
                                       connection.get());
-                    connectionEntry.reject(Error::system("Connection lost"));
+
+                    connectionEntry.reject("Connection has empty fd");
+                    return;
+                    // conn_fd is either the direct fd of 'connection', or, in
+                    // the ssl case, the fd of the SslConnection
                 }
-                else
-                {
-                    connectionEntry.resolve();
-                    // We are connected, we can start reading data now
-                    reactor()->modifyFd(key(), conn_fd, NotifyOn::Read);
+
+                if (connection->isSsl())
+                { // Complete SSL verification
+                    try {
+                        std::shared_ptr<SslConnection> ssl_conn(
+                            connection->fdOrSslConn()->getSslConn());
+                        if (!ssl_conn)
+                            throw std::runtime_error("Null ssl_conn");
+                    }
+                    catch(...)
+                    {
+                        connectionEntry.reject(Error::system(
+                                        "SSL failure, could not connect"));
+                        throw std::runtime_error(
+                            "SSL failure, could not connect");
+                    }
                 }
+
+                connectionEntry.resolve();
+                // We are connected, we can start reading data now
+                reactor()->modifyFd(key(), conn_fd, NotifyOn::Read);
             }
             else
             {
@@ -657,13 +733,19 @@ namespace Pistache::Http::Experimental
 
         for (;;)
         {
-            Fd conn_fd = connection->fd();
+            Fd conn_fd = connection->fdDirectOrFromSsl();
             if (conn_fd == PS_FD_EMPTY)
                 break; // can happen if fd was closed meanwhile
 
-            const PST_SSIZE_T bytes = PST_SOCK_RECV(
-                GET_ACTUAL_FD(conn_fd), buffer+totalBytes,
-                max_buffer - totalBytes, 0);
+            PST_SSIZE_T bytes = -1;
+            if (connection->isSsl())
+                bytes = connection->fdOrSslConn()->getSslConn()->sslRawRecv(
+                    buffer+totalBytes, max_buffer - totalBytes);
+            else
+                bytes = PST_SOCK_RECV(
+                    GET_ACTUAL_FD(conn_fd), buffer+totalBytes,
+                    max_buffer - totalBytes, 0);
+
             if (bytes == -1)
             {
                 if ((errno == EAGAIN) || (errno == EWOULDBLOCK))
@@ -731,8 +813,7 @@ namespace Pistache::Http::Experimental
     }
 
     Connection::Connection(size_t maxResponseSize)
-        : fd_(PS_FD_EMPTY)
-        , requestEntry(nullptr)
+        : requestEntry(nullptr)
         , parser(maxResponseSize)
     {
         state_.store(static_cast<uint32_t>(State::Idle));
@@ -741,14 +822,23 @@ namespace Pistache::Http::Experimental
 
     void Connection::connect(const Address& addr)
     {
+        const auto& scheme = addr.scheme();
+        if (scheme == Address::Scheme::Https)
+            connectSsl(addr);
+        else
+            connectSocket(addr);
+    }
+
+    void Connection::connectSocket(const Address& addr)
+    {
         PS_TIMEDBG_START_THIS;
 
         struct addrinfo hints = {};
         hints.ai_family       = addr.family();
         hints.ai_socktype     = SOCK_STREAM; /* Stream socket */
 
-        const auto& host = addr.host();
-        const auto& port = addr.port().toString();
+        const auto& host   = addr.host();
+        const auto& port   = addr.port().toString();
 
         AddrInfo addressInfo;
 
@@ -761,7 +851,7 @@ namespace Pistache::Http::Experimental
              an_addr = an_addr->ai_next)
         {
             sfd = PST_SOCK_SOCKET(an_addr->ai_family, an_addr->ai_socktype,
-                           an_addr->ai_protocol);
+                                  an_addr->ai_protocol);
             PS_LOG_DEBUG_ARGS("::socket actual_fd %d", sfd);
             if (sfd < 0)
                 continue;
@@ -770,19 +860,23 @@ namespace Pistache::Http::Experimental
 
             connectionState_.store(Connecting);
 
+            { // encapsulate
+                Fd fd = PS_FD_EMPTY;
 #ifdef _USE_LIBEVENT
-            // We're openning a connection to a remote resource - I guess it
-            // makes sense to allow either read or write?
-            fd_ = TRY_NULL_RET(
-                EventMethFns::em_event_new(
-                    sfd, // pre-allocated file desc
-                    EVM_READ | EVM_WRITE | EVM_PERSIST | EVM_ET,
-                    F_SETFDL_NOTHING, // setfd
-                    PST_O_NONBLOCK // setfl
-                    ));
+                // We're openning a connection to a remote resource - I guess
+                // it makes sense to allow either read or write
+                fd = TRY_NULL_RET(
+                    EventMethFns::em_event_new(
+                        sfd, // pre-allocated file desc
+                        EVM_READ | EVM_WRITE | EVM_PERSIST | EVM_ET,
+                        F_SETFDL_NOTHING, // setfd
+                        PST_O_NONBLOCK // setfl
+                        ));
 #else
-            fd_ = sfd;
+                fd = sfd;
 #endif
+                fd_or_ssl_conn_ = std::make_shared<FdOrSslConn>(fd);
+            }
 
             transport_
                 ->asyncConnect(shared_from_this(), an_addr->ai_addr,
@@ -807,10 +901,57 @@ namespace Pistache::Http::Experimental
             throw std::runtime_error("Failed to connect");
     }
 
+    std::mutex Connection::hostChainPemFileMutex_;
+    std::string Connection::hostChainPemFile_;
+    const std::string & Connection::getHostChainPemFile()
+    {
+        GUARD_AND_DBG_LOG(hostChainPemFileMutex_);
+        return(hostChainPemFile_);
+    }
+    void Connection::setHostChainPemFile(const std::string & _hostCPFl)//call once
+    {
+        GUARD_AND_DBG_LOG(hostChainPemFileMutex_);
+        hostChainPemFile_ = _hostCPFl;
+    }
+
+    void Connection::connectSsl(const Address& addr)
+    {
+        PS_TIMEDBG_START_THIS;
+
+        const std::string host_cpem_file(getHostChainPemFile());
+
+        std::shared_ptr<SslConnection> ssl_conn(std::make_shared<SslConnection>
+                                                (addr.host(),
+                                                 addr.port(),
+                                                 addr.family(), // domain
+                                                 addr.page(),
+                                                 &host_cpem_file));
+        if (!ssl_conn)
+            throw std::runtime_error("Failed to connect");
+
+        std::shared_ptr<FdOrSslConn> fd_or_ssl_conn_new(
+            std::make_shared<FdOrSslConn>(ssl_conn));
+        if (!fd_or_ssl_conn_new)
+            throw std::runtime_error("Failed to connect");
+
+        connectionState_.store(Connecting);
+        fd_or_ssl_conn_ = fd_or_ssl_conn_new;
+
+        transport_->asyncConnect(shared_from_this(),
+                                 NULL/*sockaddr*/, 0/*addr_len*/).then([=]() {
+                                     connectionState_.store(Connected);
+                                     processRequestQueue(); },
+                                     PrintException());
+
+        if (fdDirectOrFromSsl() == PS_FD_EMPTY)
+            throw std::runtime_error("Failed to connect");
+    }
+
+
     std::string Connection::dump() const
     {
         std::ostringstream oss;
-        oss << "Connection(fd = " << fd_ << ", src_port = ";
+        oss << "Connection(fd = " << fdDirectOrFromSsl() << ", src_port = ";
         if (saddr.ss_family == AF_INET)
         {
             oss << ntohs(reinterpret_cast<const struct sockaddr_in*>(&saddr)->sin_port);
@@ -868,7 +1009,9 @@ namespace Pistache::Http::Experimental
             transport_->setStopHandlingwMutexAlreadyLocked();
 
             connectionState_.store(NotConnected);
-            CLOSE_FD(fd_);
+
+            if (fd_or_ssl_conn_)
+                fd_or_ssl_conn_->close();
 
             PS_LOG_DEBUG_ARGS("Unlocking handling_mutex %p",
                               &handling_mutex);
@@ -878,7 +1021,8 @@ namespace Pistache::Http::Experimental
             PS_LOG_DEBUG_ARGS("Closing connection %p without transport", this);
 
             connectionState_.store(NotConnected);
-            CLOSE_FD(fd_);
+            if (fd_or_ssl_conn_)
+                fd_or_ssl_conn_->close();
         }
     }
 
@@ -895,16 +1039,6 @@ namespace Pistache::Http::Experimental
     }
 
     bool Connection::hasTransport() const { return transport_ != nullptr; }
-
-    Fd Connection::fd() const
-    {
-#ifdef DEBUG
-        if (fd_ == PS_FD_EMPTY) // can happen if fd was closed meanwhile
-            PS_LOG_DEBUG_ARGS("Connection %p has empty fd", this);
-#endif
-
-        return fd_;
-    }
 
     void Connection::handleResponsePacket(const char* buffer, size_t totalBytes)
     {
@@ -1383,12 +1517,7 @@ namespace Pistache::Http::Experimental
 
         bool https_url = false;
         auto resource  = splitUrl(resourceData, &https_url);
-        if (https_url)
-        {
-            PS_LOG_WARNING_ARGS("URL %s is https, but Client class does not "
-                                "currently support HTTPS",
-                                resourceData.c_str());
-        }
+        PS_LOG_DEBUG_ARGS("URL is %s", https_url ? "HTTPS" : "HTTP");
 
         auto conn = pool.pickConnection(std::string(resource.first));
 
@@ -1445,8 +1574,13 @@ namespace Pistache::Http::Experimental
                 });
 
                 PS_LOG_DEBUG("Making addr");
-                Address addr(helpers::httpAddr(resource.first,
-                                               https_url ? 443 : 0 /* default port*/));
+                const std::string page(resource.second);
+                Address addr(helpers::httpAddr(
+                                 resource.first,
+                                 https_url ? 443 : 0, //def port
+                                 https_url ? Address::Scheme::Https :
+                                 Address::Scheme::Http,
+                                 &page));
 
                 PS_LOG_DEBUG_ARGS("Connection %p calling connect", conn.get());
                 conn->connect(addr);
@@ -1515,4 +1649,22 @@ namespace Pistache::Http::Experimental
         PS_LOG_DEBUG_ARGS("Unlocking queuesLock %p", &queuesLock);
     }
 
-} // namespace Pistache::Http
+    Fd FdOrSslConn::getFd() const
+    {
+        return(ssl_conn_ ? ssl_conn_->getFd() : fd_);
+    }
+
+    void FdOrSslConn::close()
+    {   if (fd_ != PS_FD_EMPTY)
+        {
+            CLOSE_FD(fd_);
+            fd_ = PS_FD_EMPTY;
+        }
+        if (ssl_conn_)
+        {
+            ssl_conn_->close();
+            ssl_conn_ = nullptr;
+        }
+    }
+
+} // namespace Pistache::Http::Experimental
