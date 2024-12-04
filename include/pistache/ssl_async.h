@@ -49,6 +49,7 @@ private:
     int mCallSslReadInsteadOfWrite;
     int mCallSslWriteInsteadOfRead;
     int mConnecting;
+    bool mDoVerification;
 
 private:
     SSL * mSsl;
@@ -62,7 +63,7 @@ private:
     } ACTION;
     ACTION ssl_connect();
 
-    void checkSocket(bool _forAppRead);
+    int checkSocket(bool _forAppRead);
 
 private:
     ACTION ssl_read();
@@ -75,6 +76,7 @@ public:
 public:
     SslAsync(const char * _hostName, unsigned int _hostPort,
              int _domain, // AF_INET or AF_INET6
+             bool _doVerification,
              const char * _hostChainPemFile);
     ~SslAsync();
 

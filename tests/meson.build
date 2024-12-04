@@ -21,6 +21,7 @@ pistache_test_files = [
 	'http_parsing_test',
 	'http_server_test',
 	'http_uri_test',
+	'https_client_test',
 	'listener_test',
 	'log_api_test',
 	'mailbox_test',

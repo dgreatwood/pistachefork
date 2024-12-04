@@ -29,28 +29,42 @@
 
 namespace Pistache::Http::Experimental
 {
+    enum class SslVerification { // Note: Affects only HTTPS connections
+        On                = 1,
+        OnExceptLocalhost = 2,
+        Off               = 3
+    };
+
     namespace Default
     {
-        constexpr int Threads               = 1;
-        constexpr int MaxConnectionsPerHost = 8;
-        constexpr bool KeepAlive            = true;
-        constexpr size_t MaxResponseSize    = std::numeric_limits<uint32_t>::max();
+        constexpr int Threads                           = 1;
+        constexpr int MaxConnectionsPerHost             = 8;
+        constexpr bool KeepAlive                        = true;
+        constexpr size_t MaxResponseSize                = std::numeric_limits<uint32_t>::max();
+        constexpr SslVerification ClientSslVerification = SslVerification::OnExceptLocalhost;
     } // namespace Default
 
     class Transport;
     class SslConnection;
 
-    class FdOrSslConn {
+    class FdOrSslConn
+    {
 
     public:
-        FdOrSslConn() : fd_(PS_FD_EMPTY) { }
-        FdOrSslConn(Fd _fd) : fd_(_fd) { }
-        FdOrSslConn(std::shared_ptr<SslConnection> _sslConn) :
-            fd_(PS_FD_EMPTY), ssl_conn_(_sslConn) { }
+        FdOrSslConn()
+            : fd_(PS_FD_EMPTY)
+        { }
+        FdOrSslConn(Fd _fd)
+            : fd_(_fd)
+        { }
+        FdOrSslConn(std::shared_ptr<SslConnection> _sslConn)
+            : fd_(PS_FD_EMPTY)
+            , ssl_conn_(_sslConn)
+        { }
 
         Fd getFd() const;
-        Fd getNonSslSocketFd() const { return(fd_); }
-        std::shared_ptr<SslConnection> getSslConn() { return(ssl_conn_); }
+        Fd getNonSslSocketFd() const { return (fd_); }
+        std::shared_ptr<SslConnection> getSslConn() { return (ssl_conn_); }
 
         void close(); // closes either fd_ or ssl_conn_
 
@@ -89,9 +103,12 @@ namespace Pistache::Http::Experimental
                                Connecting,
                                Connected };
 
-        void connect(const Address& addr);
+        void connect(Address::Scheme scheme, SslVerification sslVerification,
+                     const std::string& domain,
+                     const std::string* page);
         // connectSocket and connectSsl are private
         void close();
+        void closeFromRemoteClosedConnection(); // handling mutex already locked
         bool isIdle() const;
         bool tryUse();
         void setAsIdle();
@@ -100,8 +117,8 @@ namespace Pistache::Http::Experimental
         void associateTransport(const std::shared_ptr<Transport>& transport);
 
         // If using HTTPS, application should set hostChainPemFile_
-        static const std::string & getHostChainPemFile();
-        static void setHostChainPemFile(const std::string & _hostCPFl);//call once
+        static const std::string& getHostChainPemFile();
+        static void setHostChainPemFile(const std::string& _hostCPFl); // call once
 
         Async::Promise<Response> perform(const Http::Request& request, OnDone onDone);
 
@@ -112,21 +129,21 @@ namespace Pistache::Http::Experimental
                          Async::Rejection reject, OnDone onDone);
 
         std::shared_ptr<FdOrSslConn> fdOrSslConn() const
-            { return(fd_or_ssl_conn_); }
+        {
+            return (fd_or_ssl_conn_);
+        }
 
         // Fd fd() const;
         bool isSsl() const
-            {
-                return((fd_or_ssl_conn_) &&
-                       (fd_or_ssl_conn_->getSslConn()));
-            }
+        {
+            return ((fd_or_ssl_conn_) && (fd_or_ssl_conn_->getSslConn()));
+        }
         Fd fdDirectOrFromSsl() const
-            {
-                if (!fd_or_ssl_conn_)
-                    return(PS_FD_EMPTY);
-                return(fd_or_ssl_conn_->getFd());
-            }
-
+        {
+            if (!fd_or_ssl_conn_)
+                return (PS_FD_EMPTY);
+            return (fd_or_ssl_conn_->getFd());
+        }
 
         void handleResponsePacket(const char* buffer, size_t totalBytes);
         void handleError(const char* error);
@@ -138,7 +155,8 @@ namespace Pistache::Http::Experimental
         void processRequestQueue();
 
         void connectSocket(const Address& addr);
-        void connectSsl(const Address& addr);
+        void connectSsl(const Address& addr, const std::string& domain,
+                        SslVerification sslVerification);
 
         struct RequestEntry
         {
@@ -207,7 +225,7 @@ namespace Pistache::Http::Experimental
 
     namespace RequestBuilderAddOns
     {
-        std::size_t bodySize(RequestBuilder & rb);
+        std::size_t bodySize(RequestBuilder& rb);
     }
 
     class RequestBuilder
@@ -215,7 +233,7 @@ namespace Pistache::Http::Experimental
     public:
         friend class Client;
 
-        friend std::size_t RequestBuilderAddOns::bodySize(RequestBuilder & rb);
+        friend std::size_t RequestBuilderAddOns::bodySize(RequestBuilder& rb);
 
         RequestBuilder& method(Method method);
         RequestBuilder& resource(const std::string& val);
@@ -261,18 +279,21 @@ namespace Pistache::Http::Experimental
                 , maxConnectionsPerHost_(Default::MaxConnectionsPerHost)
                 , keepAlive_(Default::KeepAlive)
                 , maxResponseSize_(Default::MaxResponseSize)
+                , clientSslVerification_(Default::ClientSslVerification)
             { }
 
             Options& threads(int val);
             Options& keepAlive(bool val);
             Options& maxConnectionsPerHost(int val);
             Options& maxResponseSize(size_t val);
+            Options& clientSslVerification(SslVerification val);
 
         private:
             int threads_;
             int maxConnectionsPerHost_;
             bool keepAlive_;
             size_t maxResponseSize_;
+            SslVerification clientSslVerification_;
         };
 
         Client();
@@ -297,6 +318,8 @@ namespace Pistache::Http::Experimental
 
         ConnectionPool pool;
         Aio::Reactor::Key transportKey;
+
+        SslVerification sslVerification;
 
         std::atomic<uint64_t> ioIndex;
 

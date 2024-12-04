@@ -43,6 +43,7 @@ public:
     SslConnectionImpl(const std::string & _hostName, unsigned int _hostPort,
                       int _domain, // AF_INET or AF_INET6
                       const std::string & _hostResource,
+                      bool _doVerification,
                       const std::string * _hostChainPemFile);
 
     // Note: read(...) removed since not used
@@ -62,6 +63,7 @@ SslConnectionImpl::SslConnectionImpl(const std::string & _hostName,
                                      unsigned int _hostPort,
                                      int _domain, // AF_INET or AF_INET6
                                      const std::string & _hostResource,
+                                     bool _doVerification,
                                      const std::string * _hostChainPemFile) :
     mHostName(_hostName), mHostPort(_hostPort), mHostResource(_hostResource)
 {
@@ -70,6 +72,7 @@ SslConnectionImpl::SslConnectionImpl(const std::string & _hostName,
 
     SslAsyncSPtr cli = std::make_shared<SslAsync>(mHostName.c_str(), mHostPort,
                         _domain,
+                        _doVerification,
                         _hostChainPemFile ? _hostChainPemFile->c_str() : NULL);
 
     if (!cli)
@@ -168,11 +171,14 @@ SslConnection::SslConnection(const std::string & _hostName,
                              unsigned int _hostPort,
                              int _domain, // AF_INET or AF_INET6
                              const std::string & _hostResource,
+                             bool _doVerification,
                              const std::string * _hostChainPemFile)
 {
     mImpl = std::make_shared<SslConnectionImpl>(_hostName, _hostPort,
-                                             _domain,
-                                             _hostResource, _hostChainPemFile);
+                                                _domain,
+                                                _hostResource,
+                                                _doVerification,
+                                                _hostChainPemFile);
     if (!mImpl)
         throw(std::runtime_error("Failed to alloc SslConnectionImpl"));
 }

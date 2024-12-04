@@ -36,6 +36,7 @@ public:
                   unsigned int _hostPort, // zero => default
                   int _domain, // AF_INET or AF_INET6
                   const std::string & _hostResource,//without host, w/o queries
+                  bool _doVerification,
                   const std::string * _hostChainPemFile);
 
     // Note: read(...) removed since not used

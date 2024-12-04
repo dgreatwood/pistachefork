@@ -13,11 +13,11 @@
 #include <pistache/winornix.h>
 
 #include <pistache/client.h>
-#include <pistache/sslclient.h>
 #include <pistache/common.h>
 #include <pistache/eventmeth.h>
 #include <pistache/http.h>
 #include <pistache/net.h>
+#include <pistache/sslclient.h>
 #include <pistache/stream.h>
 
 #include PIST_QUOTE(PST_NETDB_HDR)
@@ -32,10 +32,10 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <cstring> // for std::memcpy
 #include <memory>
 #include <sstream>
 #include <string>
-#include <cstring> // for std::memcpy
 
 namespace Pistache::Http::Experimental
 {
@@ -52,7 +52,7 @@ namespace Pistache::Http::Experimental
         // if https_out is non null, then *https_out is set to true if URL
         // starts with "https://" and false otherwise
         std::pair<std::string_view, std::string_view> splitUrl(
-            const std::string& url, bool* https_out = nullptr)
+            const std::string& url, bool remove_subdomain, bool* https_out = nullptr)
         {
             RawStreamBuf<char> buf(const_cast<char*>(url.data()), url.size());
             StreamCursor cursor(&buf);
@@ -67,8 +67,26 @@ namespace Pistache::Http::Experimental
                     *https_out = looks_like_https;
             }
 
-            match_string("www", cursor);
-            match_literal('.', cursor);
+            // Skipping the subdomain ("www.") is a good idea if we want to
+            // resolve to an IP address for a TCP or SSL connection. It is a
+            // bad idea if we are constructing the REST request - it may result
+            // in a 301 HTTP error ("document moved" aka a redirection). E.g.
+            // curl "https://google.com" - gets a 301 reponse, while curl
+            // "https://www.google.com" - gets a 200 response i.e. success.
+            //
+            // ALSO - this is a weak way to remove the subdomain. There are
+            // many other possible subdomains than just "www". To actually
+            // identify the subdomain, you need to identify the TLD (".com" or
+            // whatever), work back to the domain, and then isolate the
+            // subdomain part of the URL. See https://publicsuffix.org and e.g.
+            // https://stackoverflow.com/questions/288810/
+            //                                     get-the-subdomain-from-a-url
+            // TODO !!!!
+            if (remove_subdomain)
+            {
+                match_string("www", cursor);
+                match_literal('.', cursor);
+            }
 
             StreamCursor::Token hostToken(cursor);
             match_until({ '?', '/' }, cursor);
@@ -137,9 +155,10 @@ namespace Pistache::Http::Experimental
 
             bool is_https           = false;
             const auto& res         = request.resource();
-            const auto [host, path] = splitUrl(res, &is_https);
-            const auto& body        = request.body();
-            const auto& query       = request.query();
+            const auto [host, path] = splitUrl(res, false, &is_https);
+            // For splitUrl, false => do not remove subdomain from host name
+            const auto& body  = request.body();
+            const auto& query = request.query();
 
             auto pathStr = std::string(path);
 
@@ -153,8 +172,8 @@ namespace Pistache::Http::Experimental
             writeCookies(streamBuf, request.cookies());
             writeHeaders(streamBuf, request.headers());
 
-            std::string host_str(std::string(host) +
-                                 std::string(is_https ? ":443" : ""));
+            std::string host_str(
+                std::string(host) + std::string((is_https && (std::string(host).find(':') == std::string::npos)) ? ":443" : ""));
 
             writeHeader<Http::Header::UserAgent>(streamBuf, UA);
             writeHeader<Http::Header::Host>(streamBuf, host_str);
@@ -178,7 +197,7 @@ namespace Pistache::Http::Experimental
         PROTOTYPE_OF(Aio::Handler, Transport)
 
         Transport()
-            : stopHandling(false) {};
+            : stopHandling(false) { };
         Transport(const Transport&)
             : requestsQueue()
             , connectionsQueue()
@@ -419,20 +438,16 @@ namespace Pistache::Http::Experimental
         PST_SSIZE_T totalWritten = 0;
         for (;;)
         {
-            const char* data               = buffer.data() + totalWritten;
-            const PST_SSIZE_T len          = buffer.size() - totalWritten;
+            const char* data         = buffer.data() + totalWritten;
+            const PST_SSIZE_T len    = buffer.size() - totalWritten;
             PST_SSIZE_T bytesWritten = -1;
 
             if (conn->isSsl())
             {
-                PS_LOG_DEBUG_ARGS("SSL send: fd %" PIST_QUOTE(PS_FD_PRNTFCD)
-                                  ", ptr %p, len %d",
+                PS_LOG_DEBUG_ARGS("SSL send: fd %" PIST_QUOTE(PS_FD_PRNTFCD) ", ptr %p, len %d",
                                   fd, data, len);
-                bytesWritten = conn->fdOrSslConn()->getSslConn()->
-                    sslRawSend(data, len);
-                PS_LOG_DEBUG_ARGS("SSL sent: res %d, fd %"
-                                  PIST_QUOTE(PS_FD_PRNTFCD)
-                                  ", data %p, len %d",
+                bytesWritten = conn->fdOrSslConn()->getSslConn()->sslRawSend(data, len);
+                PS_LOG_DEBUG_ARGS("SSL sent: res %d, fd %" PIST_QUOTE(PS_FD_PRNTFCD) ", data %p, len %d",
                                   bytesWritten, fd, data, len);
             }
             else
@@ -449,6 +464,10 @@ namespace Pistache::Http::Experimental
                         throw std::runtime_error("Unimplemented, fix me!");
                     }
                     reactor()->modifyFd(key(), fd, NotifyOn::Write, Polling::Mode::Edge);
+                }
+                else if (errno == ECONNREFUSED)
+                {
+                    conn->handleError("Could not send, connection refused");
                 }
                 else
                 {
@@ -525,7 +544,7 @@ namespace Pistache::Http::Experimental
                                       errno, PST_STRERROR_R_ERRNO);
 
                     data->reject(Error::system(
-                                    "Failed to connect, null ssl_conn"));
+                        "Failed to connect, null ssl_conn"));
                     return;
                 }
 
@@ -550,20 +569,19 @@ namespace Pistache::Http::Experimental
                 PST_DBG_DECL_SE_ERR_P_EXTRA;
                 PS_LOG_DEBUG_ARGS("::connect res %d, errno on fail %d (%s)",
                                   res, (res < 0) ? errno : 0,
-                                  (res < 0) ?
-                                  PST_STRERROR_R_ERRNO : "success");
+                                  (res < 0) ? PST_STRERROR_R_ERRNO : "success");
 
                 if ((res == 0) || ((res == -1) && (errno == EINPROGRESS))
-                    #ifdef _IS_WINDOWS
+#ifdef _IS_WINDOWS
                     || ((res == -1) && (errno == EWOULDBLOCK))
-                    // In Linux, EWOULDBLOCK can be set by ::connect, but only
-                    // for Unix domain sockets (i.e. sockets being used for
-                    // inter-process communication) which is not our situation
-                    //
-                    // In Windows, EWOULDBLOCK is typically set here for
-                    // non-blocking sockets
-                    #endif
-                    )
+// In Linux, EWOULDBLOCK can be set by ::connect, but only
+// for Unix domain sockets (i.e. sockets being used for
+// inter-process communication) which is not our situation
+//
+// In Windows, EWOULDBLOCK is typically set here for
+// non-blocking sockets
+#endif
+                )
                 {
                     reactor()->registerFdOneShot(key(), fd,
                                                  NotifyOn::Write | NotifyOn::Hangup | NotifyOn::Shutdown);
@@ -592,6 +610,8 @@ namespace Pistache::Http::Experimental
 #else
             static_cast<Fd>(tag.value());
 #endif
+
+        PS_LOG_DEBUG_ARGS("Readable entry fd %" PIST_QUOTE(PS_FD_PRNTFCD), fd);
 
         // Note: We only use the second element of *connIt (which is
         // "connection"); fd is the first element (the map key). Since *fd is
@@ -663,16 +683,17 @@ namespace Pistache::Http::Experimental
 
                 if (connection->isSsl())
                 { // Complete SSL verification
-                    try {
+                    try
+                    {
                         std::shared_ptr<SslConnection> ssl_conn(
                             connection->fdOrSslConn()->getSslConn());
                         if (!ssl_conn)
                             throw std::runtime_error("Null ssl_conn");
                     }
-                    catch(...)
+                    catch (...)
                     {
                         connectionEntry.reject(Error::system(
-                                        "SSL failure, could not connect"));
+                            "SSL failure, could not connect"));
                         throw std::runtime_error(
                             "SSL failure, could not connect");
                     }
@@ -723,12 +744,13 @@ namespace Pistache::Http::Experimental
     {
         PS_TIMEDBG_START_THIS;
 
-        PST_SSIZE_T totalBytes = 0;
-        unsigned int max_buffer = Const::MaxBuffer;
-        char stack_buffer[Const::MaxBuffer+16] = {
-                0,
-            };
-        char * buffer = &(stack_buffer[0]);
+        PST_SSIZE_T totalBytes                   = 0;
+        unsigned int max_buffer                  = Const::MaxBuffer;
+        const unsigned int max_max_buffer        = 8 * 1024 * 1024;
+        char stack_buffer[Const::MaxBuffer + 16] = {
+            0,
+        };
+        char* buffer = &(stack_buffer[0]);
         std::unique_ptr<char[]> buffer_uptr;
 
         for (;;)
@@ -740,10 +762,10 @@ namespace Pistache::Http::Experimental
             PST_SSIZE_T bytes = -1;
             if (connection->isSsl())
                 bytes = connection->fdOrSslConn()->getSslConn()->sslRawRecv(
-                    buffer+totalBytes, max_buffer - totalBytes);
+                    buffer + totalBytes, max_buffer - totalBytes);
             else
                 bytes = PST_SOCK_RECV(
-                    GET_ACTUAL_FD(conn_fd), buffer+totalBytes,
+                    GET_ACTUAL_FD(conn_fd), buffer + totalBytes,
                     max_buffer - totalBytes, 0);
 
             if (bytes == -1)
@@ -766,7 +788,7 @@ namespace Pistache::Http::Experimental
                 else
                 {
                     PST_DECL_SE_ERR_P_EXTRA;
-                    const char * err_msg = PST_STRERROR_R_ERRNO;
+                    const char* err_msg = PST_STRERROR_R_ERRNO;
                     PS_LOG_DEBUG_ARGS("recv err, errno %d %s", errno, err_msg);
 
                     connection->handleError(err_msg);
@@ -780,7 +802,7 @@ namespace Pistache::Http::Experimental
                     connection->handleError("Remote closed connection");
                 }
                 connections.erase(conn_fd);
-                connection->close();
+                connection->closeFromRemoteClosedConnection();
                 break;
             }
             else
@@ -791,23 +813,22 @@ namespace Pistache::Http::Experimental
             if (totalBytes >= max_buffer)
             {
                 auto new_max_buffer = (max_buffer * 2);
-                char * new_buffer = 0;
-                if ((new_max_buffer > (8*1024*1024)) ||//new_max_buffer > 8MB ?
-                    (0 == (new_buffer = new char[new_max_buffer+16])))
+                char* new_buffer    = 0;
+                if ((new_max_buffer > max_max_buffer) || (nullptr == (new_buffer = new char[new_max_buffer + 16])))
                 {
-                    if (new_max_buffer > 268435456)
+                    if (new_max_buffer > max_max_buffer)
                         PS_LOG_WARNING("Receive buffer would be too big");
                     else
                         PS_LOG_WARNING_ARGS("Failed to alloc %d bytes memory",
-                                            new_max_buffer+16);
+                                            new_max_buffer + 16);
 
                     connection->handleResponsePacket(buffer, totalBytes);
                     break;
                 }
                 std::memcpy(new_buffer, buffer, max_buffer);
                 buffer_uptr = std::unique_ptr<char[]>(new_buffer);
-                buffer = new_buffer;
-                max_buffer = new_max_buffer;
+                buffer      = new_buffer;
+                max_buffer  = new_max_buffer;
             }
         }
     }
@@ -820,13 +841,29 @@ namespace Pistache::Http::Experimental
         connectionState_.store(NotConnected);
     }
 
-    void Connection::connect(const Address& addr)
+    void Connection::connect(Address::Scheme scheme,
+                             SslVerification sslVerification,
+                             const std::string& domain,
+                             const std::string* page)
     {
-        const auto& scheme = addr.scheme();
+        const Address addr(helpers::httpAddr(
+            domain,
+            (Address::Scheme::Https == scheme) ? 443 : 0, // default port
+            scheme, page));
+
         if (scheme == Address::Scheme::Https)
-            connectSsl(addr);
+        {
+            std::string domain_without_port(domain);
+            size_t last_colon = domain.find_last_of(':');
+            if (last_colon != std::string::npos)
+                domain_without_port = domain.substr(0, last_colon);
+
+            connectSsl(addr, domain_without_port, sslVerification);
+        }
         else
+        {
             connectSocket(addr);
+        }
     }
 
     void Connection::connectSocket(const Address& addr)
@@ -837,8 +874,8 @@ namespace Pistache::Http::Experimental
         hints.ai_family       = addr.family();
         hints.ai_socktype     = SOCK_STREAM; /* Stream socket */
 
-        const auto& host   = addr.host();
-        const auto& port   = addr.port().toString();
+        const auto& host = addr.host();
+        const auto& port = addr.port().toString();
 
         AddrInfo addressInfo;
 
@@ -848,7 +885,7 @@ namespace Pistache::Http::Experimental
         em_socket_t sfd = -1;
 
         for (const addrinfo* an_addr = addrs; an_addr;
-             an_addr = an_addr->ai_next)
+             an_addr                 = an_addr->ai_next)
         {
             sfd = PST_SOCK_SOCKET(an_addr->ai_family, an_addr->ai_socktype,
                                   an_addr->ai_protocol);
@@ -903,29 +940,44 @@ namespace Pistache::Http::Experimental
 
     std::mutex Connection::hostChainPemFileMutex_;
     std::string Connection::hostChainPemFile_;
-    const std::string & Connection::getHostChainPemFile()
+    const std::string& Connection::getHostChainPemFile()
     {
         GUARD_AND_DBG_LOG(hostChainPemFileMutex_);
-        return(hostChainPemFile_);
+        return (hostChainPemFile_);
     }
-    void Connection::setHostChainPemFile(const std::string & _hostCPFl)//call once
+    void Connection::setHostChainPemFile(const std::string& _hostCPFl) // call once
     {
         GUARD_AND_DBG_LOG(hostChainPemFileMutex_);
         hostChainPemFile_ = _hostCPFl;
     }
 
-    void Connection::connectSsl(const Address& addr)
+    void Connection::connectSsl(const Address& addr, const std::string& domain,
+                                SslVerification sslVerification)
     {
         PS_TIMEDBG_START_THIS;
 
         const std::string host_cpem_file(getHostChainPemFile());
 
-        std::shared_ptr<SslConnection> ssl_conn(std::make_shared<SslConnection>
-                                                (addr.host(),
-                                                 addr.port(),
-                                                 addr.family(), // domain
-                                                 addr.page(),
-                                                 &host_cpem_file));
+        bool do_verification = (sslVerification != SslVerification::Off);
+        if (sslVerification == SslVerification::OnExceptLocalhost)
+        {
+            std::string domain_lwr(domain);
+            std::transform(domain.begin(), domain.end(), domain_lwr.begin(),
+                           [](const char ch) {
+                               const unsigned char uch = static_cast<unsigned char>(ch);
+                               auto ires               = ::tolower(uch);
+                               return (static_cast<char>(ires));
+                           });
+            if (domain_lwr.compare("localhost") == 0)
+                do_verification = false;
+        }
+
+        std::shared_ptr<SslConnection> ssl_conn(std::make_shared<SslConnection>(domain,
+                                                                                addr.port(),
+                                                                                addr.family(), // domain
+                                                                                addr.page(),
+                                                                                do_verification,
+                                                                                &host_cpem_file));
         if (!ssl_conn)
             throw std::runtime_error("Failed to connect");
 
@@ -938,15 +990,15 @@ namespace Pistache::Http::Experimental
         fd_or_ssl_conn_ = fd_or_ssl_conn_new;
 
         transport_->asyncConnect(shared_from_this(),
-                                 NULL/*sockaddr*/, 0/*addr_len*/).then([=]() {
+                                 NULL /*sockaddr*/, 0 /*addr_len*/)
+            .then([=]() {
                                      connectionState_.store(Connected);
                                      processRequestQueue(); },
-                                     PrintException());
+                  PrintException());
 
         if (fdDirectOrFromSsl() == PS_FD_EMPTY)
             throw std::runtime_error("Failed to connect");
     }
-
 
     std::string Connection::dump() const
     {
@@ -1024,6 +1076,25 @@ namespace Pistache::Http::Experimental
             if (fd_or_ssl_conn_)
                 fd_or_ssl_conn_->close();
         }
+    }
+
+    // closeFromRemoteClosedConnection is called from Transport::handleIncoming
+    // when the remote does a zero-size send (bytes == 0), which means that the
+    // remote has cleanly closed the connection.
+    //
+    // handling mutex already locked
+    void Connection::closeFromRemoteClosedConnection()
+    {
+        PS_TIMEDBG_START_THIS;
+
+        // Note: We don't call transport_->setStopHandlingwMutexAlreadyLocked;
+        // this is a clean shutdown of this one connection, we don't need to
+        // stop all handling on the transport
+
+        connectionState_.store(NotConnected);
+
+        if (fd_or_ssl_conn_)
+            fd_or_ssl_conn_->close();
     }
 
     void Connection::associateTransport(
@@ -1394,10 +1465,18 @@ namespace Pistache::Http::Experimental
         return *this;
     }
 
+    Client::Options& Client::Options::clientSslVerification(
+        SslVerification val)
+    {
+        clientSslVerification_ = val;
+        return *this;
+    }
+
     Client::Client()
         : reactor_(Aio::Reactor::create())
         , pool()
         , transportKey()
+        , sslVerification(SslVerification::On)
         , ioIndex(0)
         , queuesLock()
         , stopProcessRequestQueues(false)
@@ -1416,6 +1495,7 @@ namespace Pistache::Http::Experimental
 
     void Client::init(const Client::Options& options)
     {
+        sslVerification = options.clientSslVerification_;
         pool.init(options.maxConnectionsPerHost_, options.maxResponseSize_);
         reactor_->init(Aio::AsyncContext(options.threads_));
         transportKey = reactor_->addHandler(std::make_shared<Transport>());
@@ -1516,7 +1596,8 @@ namespace Pistache::Http::Experimental
         PS_LOG_DEBUG_ARGS("resourceData %s", resourceData.c_str());
 
         bool https_url = false;
-        auto resource  = splitUrl(resourceData, &https_url);
+        auto resource  = splitUrl(resourceData, true, &https_url);
+        // For splitUrl, true => DO remove subdomain (e.g. www.) from host name
         PS_LOG_DEBUG_ARGS("URL is %s", https_url ? "HTTPS" : "HTTP");
 
         auto conn = pool.pickConnection(std::string(resource.first));
@@ -1550,7 +1631,7 @@ namespace Pistache::Http::Experimental
                 PS_LOG_DEBUG("No transport yet on connection");
 
                 auto transports = reactor_->handlers(transportKey);
-                auto index  = ioIndex.fetch_add(1) % transports.size();
+                auto index      = ioIndex.fetch_add(1) % transports.size();
 
                 auto transport = std::static_pointer_cast<Transport>(transports[static_cast<unsigned int>(index)]);
                 PS_LOG_DEBUG_ARGS("Associating transport %p on connection %p",
@@ -1573,17 +1654,13 @@ namespace Pistache::Http::Experimental
                     }
                 });
 
-                PS_LOG_DEBUG("Making addr");
-                const std::string page(resource.second);
-                Address addr(helpers::httpAddr(
-                                 resource.first,
-                                 https_url ? 443 : 0, //def port
-                                 https_url ? Address::Scheme::Https :
-                                 Address::Scheme::Http,
-                                 &page));
-
                 PS_LOG_DEBUG_ARGS("Connection %p calling connect", conn.get());
-                conn->connect(addr);
+                const std::string domain(resource.first);
+                const std::string page(resource.second);
+
+                conn->connect(https_url ? Address::Scheme::Https : Address::Scheme::Http,
+                              https_url ? sslVerification : SslVerification::Off,
+                              domain, &page);
                 return res;
             }
 
@@ -1651,11 +1728,12 @@ namespace Pistache::Http::Experimental
 
     Fd FdOrSslConn::getFd() const
     {
-        return(ssl_conn_ ? ssl_conn_->getFd() : fd_);
+        return (ssl_conn_ ? ssl_conn_->getFd() : fd_);
     }
 
     void FdOrSslConn::close()
-    {   if (fd_ != PS_FD_EMPTY)
+    {
+        if (fd_ != PS_FD_EMPTY)
         {
             CLOSE_FD(fd_);
             fd_ = PS_FD_EMPTY;

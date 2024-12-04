@@ -637,16 +637,6 @@ int pist_sock_select(int nfds, fd_set * readfds, fd_set * writefds,
 {
     PIST_SOCK_STARTUP_CHECK_RET_MINUS_1_ON_ERR;
 
-    /* !!!!!!!!!
-    SOCKET win_sock = get_win_socket_from_em_socket_t(em_sock);
-    if (win_sock == INVALID_SOCKET)
-    {
-        PS_LOG_DEBUG("Invalid Socket");
-        errno = EBADF;
-        return(-1);
-    }
-    */
-
     // Note: Unlike in many of the other pist_sock_xxx functions, we do not
     // convert from em_socket_t to SOCKET. The fd_set type used by Windows
     // ::select is a set of SOCKET already; when Pistache has used FD_SET to
