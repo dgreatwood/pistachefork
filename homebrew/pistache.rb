@@ -7,9 +7,8 @@
 class Pistache < Formula
   desc "Modern, fast, elegant HTTP + REST C++17 framework with pleasant API"
   homepage "https://github.com/pistacheio/pistache"
-  # !!!!!!!! CHANGE THIS to a https://github.com/pistacheio/pistache release
-  url "https://github.com/dgreatwood/pistachefork/archive/refs/tags/v0.4.22b.tar.gz"
-  sha256 "1aee77ccde52096586dadea97a195b86f43717348bb26f372f8a512c4cec84bb"
+  url "https://github.com/pistacheio/pistache/archive/refs/tags/v0.4.23.tar.gz"
+  sha256 "67c44c0ceb85dba117613c85ea70d7321919c9718297b3fc7a2b1fba6bf4a3b4"
   license "Apache-2.0"
   head "https://github.com/pistacheio/pistache.git", branch: "master"
 
@@ -21,7 +20,7 @@ class Pistache < Formula
   depends_on "libevent" => :build
   depends_on "meson" => :build
   depends_on "ninja" => :build
-  depends_on "pkg-config" => :build
+  depends_on "pkgconf" => :build
   depends_on "rapidjson" => :build
   depends_on "zstd" => :build
 
