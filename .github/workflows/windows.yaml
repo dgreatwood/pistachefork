@@ -11,9 +11,11 @@ on:
   push:
     branches:
     - master
+    - winSetupOnBareBones
   pull_request:
     branches:
     - master
+    - winSetupOnBareBones
 
 defaults:
   run:
