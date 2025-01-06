@@ -121,8 +121,8 @@ namespace Pistache::Rest
 
     std::string SegmentTreeNode::sanitizeResource(const std::string& path)
     {
-        const auto& dup = std::regex_replace(path, SegmentTreeNode::multiple_slash,
-                                             std::string("/"));
+        const auto dup = std::regex_replace(path, SegmentTreeNode::multiple_slash,
+                                            std::string("/"));
         if (dup[dup.length() - 1] == '/')
         {
             return dup.substr(1, dup.length() - 2);
@@ -542,8 +542,8 @@ namespace Pistache::Rest
 
         for (const auto& handler : customHandlers)
         {
-            auto cloned_resp     = response.clone();
-            auto handler1 = handler(
+            auto cloned_resp = response.clone();
+            auto handler1    = handler(
                 Request(req, std::vector<TypedParam>(), std::vector<TypedParam>()),
                 std::move(cloned_resp));
             if (handler1 == Route::Result::Ok)

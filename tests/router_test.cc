@@ -11,8 +11,8 @@
 */
 
 #include <algorithm>
-#include <gtest/gtest.h>
 #include <gmock/gmock-matchers.h>
+#include <gtest/gtest.h>
 
 #include <pistache/common.h>
 #include <pistache/endpoint.h>
@@ -151,6 +151,10 @@ TEST(router_test, test_sanitize)
 {
     SegmentTreeNode routes;
     auto s = SegmentTreeNode::sanitizeResource("//v1//hello/");
+
+    // !!!!!!!! debug purposes - remove
+    PS_LOG_INFO_ARGS("s: %s", s.c_str());
+
     routes.addRoute(std::string_view { s.data(), s.length() }, nullptr, nullptr);
 
     ASSERT_TRUE(match(routes, "/v1/hello////"));
@@ -299,7 +303,6 @@ public:
         (*count_)++;
         response.send(Pistache::Http::Code::Ok);
     }
-
 
     int getCount() { return *count_; }
 
