@@ -111,11 +111,11 @@ if host_machine.system() == 'windows'
     # The causal chain that generates those files is:
     #   pist_winlog.man
     #         |
-    #      *mc.exe*
+    #      *mc.exe* or (if using gcc) *windmc.exe*
     #         |
     #         pist_winlog.rc + pist_winlog.h
     #               |
-    #            *rc.exe* or (if using gcc) windres.exe
+    #            *rc.exe* or (if using gcc) *windres.exe*
     #               |
     #               pist_winlog.res
     #                     |
@@ -124,19 +124,33 @@ if host_machine.system() == 'windows'
     #                     pistachelog.dll
     #   mc.exe and rc.exe being utilities provided by Windows
 
-    mc_prog = find_program('mc.exe')
+    if compiler.get_id() == 'gcc'
+        mc_prog = find_program('windmc.exe')
+    else
+        mc_prog = find_program('mc.exe')
+    endif
     if compiler.get_id() == 'gcc'
         rc_prog = find_program('windres.exe')
     else
         rc_prog = find_program('rc.exe')
     endif
 
-    gen_src_log_rc_ct = custom_target(
-      'gen-log-rc',
-      input: ['winlog'/'pist_winlog.man'],
-      output: ['pist_winlog.rc', 'pist_winlog.h'],
-      command: [mc_prog, '-um', '-h', '@OUTDIR@', '-r', '@OUTDIR@', '@INPUT@']
-    )
+    if compiler.get_id() == 'gcc'
+        gen_src_log_rc_ct = custom_target(
+            'gen-log-rc',
+            input: ['winlog'/'pist_winlog.man'],
+            output: ['pist_winlog.rc', 'pist_winlog.h'],
+            command: [mc_prog, '-h', '@OUTDIR@', '-r',
+                      '@OUTDIR@', '@INPUT@'])
+
+    else
+        gen_src_log_rc_ct = custom_target(
+            'gen-log-rc',
+            input: ['winlog'/'pist_winlog.man'],
+            output: ['pist_winlog.rc', 'pist_winlog.h'],
+            command: [mc_prog, '-um', '-h', '@OUTDIR@', '-r',
+                      '@OUTDIR@', '@INPUT@'])
+    endif
 
     if compiler.get_id() == 'gcc'
         gen_src_log_res_ct = custom_target('gen-log-res',

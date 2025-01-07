@@ -36,4 +36,5 @@ else {
     --prefix="$MESON_PREFIX_DIR"
 }
 
-meson compile -C ${MESON_BUILD_DIR} # "...compile -v -C ..." for verbose
+# !!!!!!!! Remove verbose
+meson compile -v -C ${MESON_BUILD_DIR} # "...compile -v -C ..." for verbose
