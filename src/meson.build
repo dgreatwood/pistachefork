@@ -124,20 +124,58 @@ if host_machine.system() == 'windows'
     #                     pistachelog.dll
     #   mc.exe and rc.exe being utilities provided by Windows
 
-    mc_prog = find_program('mc.exe')
     if compiler.get_id() == 'gcc'
         rc_prog = find_program('windres.exe')
     else
         rc_prog = find_program('rc.exe')
     endif
 
-    gen_src_log_rc_ct = custom_target(
-      'gen-log-rc',
-      input: ['winlog'/'pist_winlog.man'],
-      output: ['pist_winlog.rc', 'pist_winlog.h'],
-      command: [mc_prog, '-um', '-h', '@OUTDIR@', '-r', '@OUTDIR@', '@INPUT@']
-    )
+    mc_prog = find_program('mc', required: false)
+    if mc_prog.found()
+        # Use 'mc' if available
+        gen_src_log_rc_ct = custom_target(
+            'gen-log-rc',
+            input: ['winlog'/'pist_winlog.man'],
+            output: ['pist_winlog.rc', 'pist_winlog.h'],
+            command: [mc_prog, '-um', '-h', '@OUTDIR@', '-r', '@OUTDIR@', '@INPUT@']
+        )
+    else
+        mc_prog = find_program('windmc.exe')
+         check_man_vs_mc = custom_target(
+            'check-man-vs-mc',
+            output: 'check-man-vs-mc.txt',
+            command: [
+                'bash', '-c',
+                '''
+                if [ "@INPUT0@" -nt "@INPUT1@" ]; then
+                    echo "Error: pist_winlog.man is newer than pist_winlog.mc. Please update pist_winlog.mc."
+                    exit 1
+                else
+                    echo "pist_winlog.man is not newer than pist_winlog.mc. Proceeding..."
+                    touch @OUTPUT@
+                fi
+                ''',
+                '@INPUT0@', '@INPUT1@'
+            ],
+            input: ['winlog/pist_winlog.man', 'winlog/pist_winlog.mc'],
+            build_by_default: true
+        )
 
+        gen_src_log_rc_ct = custom_target(
+            'gen-log-rc',
+            input: ['winlog'/'pist_winlog.mc'],
+            output: ['pist_winlog.rc', 'pist_winlog.h'],
+            command: [
+                mc_prog,
+                '-h', '@OUTDIR@',
+                '-r', '@OUTDIR@',
+                '@INPUT@'
+            ],
+            depends: [check_man_vs_mc]
+        )
+    endif
+
+    
     if compiler.get_id() == 'gcc'
         gen_src_log_res_ct = custom_target('gen-log-res',
                              input: [gen_src_log_rc_ct[0]], # pist_winlog.rc
