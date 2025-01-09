@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Kreijstal
+# 
+# SPDX-License-Identifier: Apache-2.0
+
 import xml.etree.ElementTree as ET
 import argparse
 import sys
@@ -51,9 +55,7 @@ def main(input_file, output_file):
         strings[string.get('id')] = string.get('value')
 
     # Start building the .mc content
-    mc_content = ';// SPDX-FileCopyrightText: 2024 Duncan Greatwood\n'
-    mc_content += ';// SPDX-License-Identifier: Apache-2.0\n\n'
-    mc_content += 'MessageIdTypedef=DWORD\n\n'
+    mc_content = 'MessageIdTypedef=DWORD\n\n'
 
     # Provider Information
     mc_content += f';// Provider Information\n'
