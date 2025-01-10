@@ -1,5 +1,16 @@
 #!/usr/bin/env powershell
 
+<#
+.Synopsis
+gccsetup.ps1 configures the current shell to build Pistache using gcc
+.Description
+gccsetup.ps1 enables the current shell to build Pistache using gcc/mingw64/msys2, installing prerequisites if needed, and configuring required environment variables.
+It should be run once in each shell that will be used to build Pistache with gcc.
+.Parameter nomcexe
+Prevents gccsetup from configuring the use of Microsoft's mc.exe utility. Pistache build will use the open-source windmc tool instead.
+#>
+
+
 param([switch]$nomcexe)
 
 #
@@ -13,6 +24,8 @@ param([switch]$nomcexe)
 $savedpwd=$pwd
 
 $pst_outer_ps_cmd = $PSCommandPath
+
+if ($nomcexe) {$env:pistNoMcExe=$TRUE}
 
 . $PSScriptRoot/helpers/commonsetup.ps1
 if ($pst_stop_running) {
@@ -76,7 +89,7 @@ if (($env:force_msys_gcc) -or `
 $env:CXX="g++"
 $env:CC="gcc"
 
-if (!($nomcexe)) {
+if (!($env:pistNoMcExe)) {
     if (! (Get-Command mc.exe -errorAction SilentlyContinue)) {
         if (Test-Path -Path "$env:ProgramFiles\Windows Kits") {
             $win_sdk_found=1
@@ -213,7 +226,7 @@ cd "$savedpwd"
 
 pstPressKeyIfRaisedAndErrThenExit
 
-if ($nomcexe) {
+if ($env:pistNoMcExe) {
     Write-Host "SUCCESS: gcc.exe and ninja.exe set up (mc.exe skipped)"
 }
 else {

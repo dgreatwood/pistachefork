@@ -27,6 +27,7 @@ else {
     meson.exe setup "$MESON_BUILD_DIR" `
     --buildtype=release `
     -DPISTACHE_USE_SSL=true `
+    $pistNoMcExeMesonOpt `
     -DPISTACHE_BUILD_EXAMPLES=true `
     -DPISTACHE_BUILD_TESTS=true `
     -DPISTACHE_BUILD_DOCS=false `
@@ -34,6 +35,10 @@ else {
     -DPISTACHE_USE_CONTENT_ENCODING_BROTLI=true `
     -DPISTACHE_USE_CONTENT_ENCODING_ZSTD=true `
     --prefix="$MESON_PREFIX_DIR"
+
+    # Note: $pistNoMcExeMesonOpt is set, if set at all, in
+    # adjbuilddirformesbuild.ps1. It is set if and only if gcc is on
+    # the path and $env:pistNoMcExe is true
 }
 
 meson compile -C ${MESON_BUILD_DIR} # "...compile -v -C ..." for verbose

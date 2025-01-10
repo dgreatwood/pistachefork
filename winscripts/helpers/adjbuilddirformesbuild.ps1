@@ -32,5 +32,9 @@ if (Test-Path -Path "$env:USERPROFILE/mesbuild") {
 if ((Get-Command gcc.exe -errorAction SilentlyContinue) -and `
   (("$env:CC" -eq "gcc") -or ("$env:CC" -eq "g++") -or `
   ("$env:CXX" -eq "gcc") -or ("$env:CXX" -eq "g++"))) {
+      if ($env:pistNoMcExe) {
+          $MESON_BUILD_DIR="$MESON_BUILD_DIR.nomcexe"
+          $pistNoMcExeMesonOpt="-DPISTACHE_NO_MC_EXE=true"
+      }
       $MESON_BUILD_DIR="$MESON_BUILD_DIR.gcc"
 }

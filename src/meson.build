@@ -111,7 +111,7 @@ if host_machine.system() == 'windows'
     # The causal chain that generates those files is:
     #   pist_winlog.man
     #         |
-    #      *mc.exe*
+    #      *mc.exe* or (if using gcc and not mc.exe) windmc.exe
     #         |
     #         pist_winlog.rc + pist_winlog.h
     #               |
@@ -130,17 +130,26 @@ if host_machine.system() == 'windows'
         rc_prog = find_program('rc.exe')
     endif
 
-    mc_prog = find_program('mc', required: false)
-    if mc_prog.found()
-        # Use 'mc' if available
+    mc_prog_found = false
+    if compiler.get_id() == 'gcc'
+        if not get_option('PISTACHE_NO_MC_EXE')
+            mc_prog = find_program('mc.exe', required: false)
+            mc_prog_found = mc_prog.found()
+        endif
+    else
+        mc_prog = find_program('mc.exe')
+        mc_prog_found = mc_prog.found()
+    endif
+    if mc_prog_found
+        # Use 'mc' if available and (with gcc) PISTACHE_NO_MC_EXE not set
         gen_src_log_rc_ct = custom_target(
             'gen-log-rc',
             input: ['winlog'/'pist_winlog.man'],
             output: ['pist_winlog.rc', 'pist_winlog.h'],
             command: [mc_prog, '-um', '-h', '@OUTDIR@', '-r', '@OUTDIR@', '@INPUT@']
         )
-    else
-        # mc.exe is not available, use the Python script to convert .man to .mc
+    elif compiler.get_id() == 'gcc'
+        # Not using mc.exe, use the Python script to convert .man to .mc
         python_prog = find_program('python3', required: true)
         convert_man_to_mc_script = files('winlog' / 'convert_man_to_mc.py')
 
