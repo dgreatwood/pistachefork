@@ -208,13 +208,17 @@ if ((! ($env:plain_prompt)) -or ($env:plain_prompt -ne "Y"))
     if ($prompt_existing) {
         $prompt_current=(prompt)
         if ((!$prompt_current) -or ($prompt_current.length -lt 3)) {
-            function global:prompt {"MVS> "}
+            function global:prompt {"GCC> "}
         }
         elseif (! ($prompt_current.SubString(0, 3) -eq "GCC")) {
             $prompt_new = "`"GCC `" + " + $prompt_existing
             $def_fn_prompt_new = `
               "function global:prompt { " + $prompt_new + " }"
             Invoke-Expression $def_fn_prompt_new
+        }
+        else {
+            Write-Warning `
+              "Prompt already starts with GCC; run gccsetup.ps1 only once per shell"
         }
     }
     else {

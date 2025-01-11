@@ -248,6 +248,11 @@ int pist_sock_startup_check()
     WSADATA wsadata;
     memset(&wsadata, 0, sizeof(wsadata));
 
+    // Note: We issue this log message in part to ensure that Pistache
+    // generates at least one log message, even in release (i.e. non-debug)
+    // mode.
+    PS_LOG_INFO("Calling WSAStartup");
+
     int wsastartup_res = WSAStartup(version_required, &wsadata);
     if (wsastartup_res == 0)
     {

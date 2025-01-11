@@ -657,7 +657,15 @@ PSLogging::PSLogging()
          " See pist_syslog.cc comments to view DEBUG and up logging."
         #endif
         ;
-    EventWritePSTCH_CBLTIN_INFO_NL_AssumeEnabled(pist_start_wmsg);
+    // !!!!!!!! Remove return code check
+    #ifdef DEBUG
+    ULONG fst_evwrite_res =
+    #endif
+        EventWritePSTCH_CBLTIN_INFO_NL_AssumeEnabled(pist_start_wmsg);
+    #ifdef DEBUG
+    if (fst_evwrite_res != ERROR_SUCCESS)
+        throw std::runtime_error("First Windows log message failed");
+    #endif
 
     #else
 

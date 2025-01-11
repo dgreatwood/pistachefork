@@ -303,6 +303,10 @@ if ((! ($env:plain_prompt)) -or ($env:plain_prompt -ne "Y"))
               "function global:prompt { " + $prompt_new + " }"
             Invoke-Expression $def_fn_prompt_new
         }
+        else {
+            Write-Warning `
+              "Prompt already starts with MVS; run msvcsetup.ps1 only once per shell"
+        }
     }
     else {
         function global:prompt {"MVS> "}

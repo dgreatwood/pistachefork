@@ -11,9 +11,11 @@ on:
   push:
     branches:
     - master
+    - kreijstalPistForkTest
   pull_request:
     branches:
     - master
+    - kreijstalPistForkTest
 
 defaults:
   run:
@@ -30,15 +32,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ 'windows-2019', 'windows-latest' ] # Oct/2024, latest = 2022
-        compiler: [ 'msvc', 'gcc' ] # Could also add clang
-        sanitizer: [ 'address', 'none' ]
-        tls: [ 'true', 'false' ]
+        # !!!!!!!! Put Back
+        # os: [ 'windows-2019', 'windows-latest' ] # Oct/2024, latest = 2022
+        # compiler: [ 'msvc', 'gcc', 'gcc-nomcexe' ] # Could also add clang
+        # sanitizer: [ 'address', 'none' ]
+        # tls: [ 'true', 'false' ]
+        # def_debug: [ 'true', 'false' ]
+        os: [ 'windows-2019' ] # Oct/2024, latest = 2022
+        compiler: [ 'gcc', 'gcc-nomcexe' ] # Could also add clang
+        sanitizer: [ 'none' ]
+        tls: [ 'true' ]
         def_debug: [ 'true', 'false' ]
         exclude:
           # VS only supports address sanitizer as of Oct/2024
           # mingw-gcc does not support any sanitizer as of Oct/2024
           - compiler: gcc
+            sanitizer: address
+          - compiler: gcc-nomcexe
             sanitizer: address
 
     runs-on: ${{ matrix.os }}
@@ -99,6 +109,10 @@ jobs:
         elseif ($env:mtrx_compiler -eq "gcc") {
           $env:force_msys_gcc = "Y";
           . winscripts\gccsetup.ps1
+        }
+        elseif ($env:mtrx_compiler -eq "gcc-nomcexe") {
+          $env:force_msys_gcc = "Y";
+          . winscripts\gccsetup.ps1 -nomcexe
         }
         else { # Use clang with MSVC (MSVC's stdlib etc.)
 
@@ -203,9 +217,16 @@ jobs:
           }
         }
 
+        if ($env:mtrx_compiler -eq "gcc-nomcexe") {
+            $pistNoMcExeMesonOpt="-DPISTACHE_NO_MC_EXE=true"
+        }
+        else {
+            $pistNoMcExeMesonOpt=" "
+        }
+
         cd "$savedpwd"
 
-        meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG="$env:mtrx_def_debug" -DPISTACHE_USE_SSL="$env:mtrx_tls" -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true -DPISTACHE_USE_CONTENT_ENCODING_BROTLI=true -DPISTACHE_USE_CONTENT_ENCODING_ZSTD=true --buildtype=debug -Db_coverage=true -Db_sanitize="$env:mtrx_sanitizer" -Db_lundef=false --prefix="$env:ProgramFiles\pistache_distribution"
+        meson setup build -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG="$env:mtrx_def_debug" -DPISTACHE_USE_SSL="$env:mtrx_tls" $pistNoMcExeMesonOp -DPISTACHE_BUILD_EXAMPLES=true -DPISTACHE_BUILD_DOCS=false -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true -DPISTACHE_USE_CONTENT_ENCODING_BROTLI=true -DPISTACHE_USE_CONTENT_ENCODING_ZSTD=true --buildtype=debug -Db_coverage=true -Db_sanitize="$env:mtrx_sanitizer" -Db_lundef=false --prefix="$env:ProgramFiles\pistache_distribution"
 
         if (Test-Path -Path 'build/meson-logs/meson-log.txt') {
             cat build/meson-logs/meson-log.txt
@@ -284,8 +305,9 @@ jobs:
         # To make log messages for the test executables go to stdout,
         # we can set the registry value psLogToStdoutAsWell to 1, as below.
 
-        #if (($env:mtrx_compiler -eq "gcc") -and
-        #      ($env:mtrx_def_debug -eq "false")) {
+        # if ((($env:mtrx_compiler -eq "gcc") -or
+        #      ($env:mtrx_compiler -eq "gcc-nomcexe")) -and
+        #     ($env:mtrx_def_debug -eq "false")) {
         #    $registryPath = "HKCU:\Software\pistacheio\pistache";
         #    $valName = "psLogToStdoutAsWell";
         #    if (! (Test-Path $registryPath)) {
@@ -343,6 +365,9 @@ jobs:
         meson test --no-rebuild -C build --verbose
         # Use the following to run just a single test (e.g. http_server_test)
         #   build/tests/run_http_server_test
+
+
+        cd "$savedpwd"
 
     - name: Install
       env:
@@ -403,5 +428,73 @@ jobs:
         if (! (Test-Path -Path "$env:ProgramFiles\pistache_distribution\bin\pistachelog.dll")) {
             throw "pistachelog.dll not installed as expected"
         }
+
+
+        # Check that Windows ETW logging is working correctly
+
+        logman start -ets Pistache -p "Pistache-Provider" 0 0 -o pistache.etl;
+        cd "build\tests";
+        ./run_cookie_test_3.exe;
+        cd "..\..";
+        logman stop Pistache -ets;
+
+        $fst5=Get-WinEvent -path "pistache.etl" -Oldest | Select-Object -First 5;
+        $id_102_count=0;
+        $id_102_start_msg_count=0;
+        $id_1_count=0;
+        foreach ($evitm in $fst5) {
+            if ($evitm.Id -eq 102) {
+                $id_102_count++
+
+                $ldn=$evitm.LevelDisplayName;
+                if (! ($ldn -contains "Information")) {
+                  Write-Error "log LevelDisplayName not as expected: $ldn";
+                  throw "Windows log LevelDisplayName not as expected"
+                }
+
+                $msg=$evitm.Message;
+                if ((! $id_102_start_msg_count) -and
+                  ((! ("$msg" -like "*INFO*")) -or
+                   (! ("$msg" -like "*Pistache start*")))) {
+                    Write-Warning "log msg not as expected: $msg"
+                }
+                else {
+                  $id_102_start_msg_count++
+                }
+            }
+
+            if ($evitm.Id -eq 1) {
+                $id_1_count++
+
+                $ldn=$evitm.LevelDisplayName;
+                if (! ($ldn -contains "Verbose")) {
+                  Write-Error "log LevelDisplayName not as expected: $ldn";
+                  throw "Windows log LevelDisplayName not as expected"
+                }
+
+                $msg=$evitm.Message;
+                if ((! ("$msg" -like "*DEBUG*")) -or
+                (! ("$msg" -like "*PSTCH*"))) {
+                    Write-Error "log msg not as expected: $msg";
+                    throw "Windows log message not as expected"
+                }
+            }
+        }
+
+        if (! $id_102_count) {
+            throw "No Id=102 / INFO log messages found"
+        }
+        if (! $id_102_start_msg_count) {
+            throw "No Id=102 / INFO Pistache start message found"
+        }
+        if ($env:mtrx_def_debug -eq "true") {
+            if (! $id_1_count) {
+                throw "No Id=1 / DEBUG log messages found"
+            }
+        }
+        elseif ($id_1_count) {
+            throw "Id=1 / DEBUG log messages found unexpectedly"
+        }
+
 
     # No coverage analysis for Windows
