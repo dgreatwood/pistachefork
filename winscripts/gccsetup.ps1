@@ -89,7 +89,11 @@ if (($env:force_msys_gcc) -or `
 $env:CXX="g++"
 $env:CC="gcc"
 
+<<<<<<< HEAD
 if (!($env:pistNoMcExe)) {
+=======
+if (!($nomcexe)) {
+>>>>>>> kreijstalPistFork/master
     if (! (Get-Command mc.exe -errorAction SilentlyContinue)) {
         if (Test-Path -Path "$env:ProgramFiles\Windows Kits") {
             $win_sdk_found=1
@@ -226,7 +230,11 @@ cd "$savedpwd"
 
 pstPressKeyIfRaisedAndErrThenExit
 
+<<<<<<< HEAD
 if ($env:pistNoMcExe) {
+=======
+if ($nomcexe) {
+>>>>>>> kreijstalPistFork/master
     Write-Host "SUCCESS: gcc.exe and ninja.exe set up (mc.exe skipped)"
 }
 else {

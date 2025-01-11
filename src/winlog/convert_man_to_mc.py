@@ -71,7 +71,7 @@ def main(input_file, output_file):
         message = event.get('message')
         if message.startswith('$(string.Event.'):
             message_id_str = message.lstrip('$(string.Event.').rstrip(')')
-            message_text = strings.get(message_id_str, '')
+            message_text = strings.get(f'Event.{message_id_str}', '')
         else:
             message_text = message
         mc_content += f'MessageId={message_id}\n'
