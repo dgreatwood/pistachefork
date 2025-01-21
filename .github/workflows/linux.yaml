@@ -8,9 +8,11 @@ on:
   push:
     branches:
     - master
+    - recreateHasFunctionDlAddr
   pull_request:
     branches:
     - master
+    - recreateHasFunctionDlAddr
 
 defaults:
   run:
