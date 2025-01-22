@@ -154,15 +154,34 @@ endif
 # #1230.
 # Note: If 'dl' is not available, per Meson it suggests that the
 # functionality is provided by libc
-has_dladdr_func = compiler.has_function('dladdr')
-if not has_dladdr_func
-  libdl_dep += dependency('dl')
-  has_dladdr_func = compiler.has_function('dladdr', dependencies: libdl_dep)
-  if not has_dladdr_func
-    warning('Unable to find dladdr(), even when trying to link to libdl')
-  endif
-  libpistache_deps += libdl_dep
+
+# Patch from PR #1286
+if meson.version().version_compare('>=0.62.0')
+    dl_dep = dependency('dl')
+else
+    dl_dep = compiler.find_library('dl', required: false)
 endif
+# Note: the Single Unix Specification version 2, issue 5 (1997) defines dlopen
+# but not dladdr. POSIX 2024 issue 8 requires dladdr. Older systems might
+# therefore lack what we need, even if libdl exists.
+#
+# Meson's "dl" check looks for dlopen. We assume that, if dladdr exists
+# at all, it is in the same DSO (whether it is libc or -ldl) as dlopen.
+# But it may not exist at all, so check to be sure.
+if not compiler.has_function('dladdr', prefix: '#include <dlfcn.h>', dependencies: dl_dep)
+    error('dladdr could not be detected')
+endif
+deps_libpistache += dl_dep
+
+# has_dladdr_func = compiler.has_function('dladdr')
+# if not has_dladdr_func
+#   libdl_dep += dependency('dl')
+#   has_dladdr_func = compiler.has_function('dladdr', dependencies: libdl_dep)
+#   if not has_dladdr_func
+#     warning('Unable to find dladdr(), even when trying to link to libdl')
+#   endif
+#   libpistache_deps += libdl_dep
+# endif
 
 version_array = []
 if meson.version().version_compare('>=0.57.0')
