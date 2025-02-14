@@ -153,6 +153,13 @@ TEST(https_client_test, one_client_with_google_request)
                 done = true;
                 // const std::string bdy(rsp.body());
             }
+            else if (rsp.code() == Http::Code::Temporary_Redirect)
+            {
+                // Feb-2025: These HTTP 302 (temporary redirect) responses seem
+                // to come very roughly once every 3000 Google search requests
+                PS_LOG_INFO("Google.com temporary redirect");
+                done = true;
+            }
         },
         Async::IgnoreException);
 
@@ -303,9 +310,19 @@ TEST(https_client_test, multiple_clients_with_multiple_search_requests)
                         }
 
                     }
+                    else if (rsp.code() == Http::Code::Temporary_Redirect)
+                    {
+                        // Feb-2025: These HTTP 302 (temporary redirect)
+                        // responses seem to come very roughly once every 3000
+                        // Google search requests
+                        PS_LOG_INFO("Temporary redirect");
+                        ++response_counter;
+                    }
                     else
+                    {
                         PS_LOG_WARNING_ARGS("Http::Response error code %d",
                                             rsp.code());
+                    }
                 },
                 Async::IgnoreException);
             responses.push_back(std::move(response));
@@ -322,23 +339,34 @@ TEST(https_client_test, multiple_clients_with_multiple_search_requests)
         client[j].shutdown();
     }
 
-    ASSERT_EQ(response_counter, CLIENT_SIZE * RESPONSE_SIZE);
-
-    PS_LOG_DEBUG_ARGS("For aol.com, response_correct_counter %d, max %d",
-                      static_cast<int>(response_correct_counter),
-                      ((CLIENT_SIZE * RESPONSE_SIZE) / SERVER_ADDRESS_NUM));
-    // Note: We allow response_correct_counter to be somewhat less than
-    // "CLIENT_SIZE * RESPONSE_SIZE / SERVER_ADDRESS_NUM", because both Bing
-    // and Google appeared to intermittently return flaky results sometimes -
-    // pages that offered to redirect us to their AI result and so on and which
-    // didn't actually include the query answer as far as I could see. Now that
-    // we're checking aol.com query results instead of Google/Bing, we keep the
-    // same logic (of allowing some query results not to have an answer)
-    // just-in-case.
-    unsigned int response_correct_counter_uint =
-        static_cast<unsigned int>(response_correct_counter);
-    ASSERT_GE(response_correct_counter_uint,
-              (((CLIENT_SIZE * RESPONSE_SIZE) * 2) / 3) / SERVER_ADDRESS_NUM);
+    ASSERT_GE(response_counter, RESPONSE_SIZE);
+    if (response_counter < (CLIENT_SIZE * RESPONSE_SIZE))
+    {
+        // Very occasionally we see an HTTP 500 error come back
+        PS_LOG_WARNING_ARGS("response_counter %d less than expected %d; "
+                            "possible internal server error at search engine",
+                            static_cast<int>(response_counter),
+                            (CLIENT_SIZE * RESPONSE_SIZE));
+    }
+    else
+    {
+        PS_LOG_DEBUG_ARGS("For aol.com, response_correct_counter %d, max %d",
+                          static_cast<int>(response_correct_counter),
+                          ((CLIENT_SIZE * RESPONSE_SIZE)/ SERVER_ADDRESS_NUM));
+        // Note: We allow response_correct_counter to be somewhat less than
+        // "CLIENT_SIZE * RESPONSE_SIZE / SERVER_ADDRESS_NUM", because both
+        // Bing and Google appeared to intermittently return flaky results
+        // sometimes - pages that offered to redirect us to their AI result and
+        // so on and which didn't actually include the query answer as far as I
+        // could see. Now that we're checking aol.com query results instead of
+        // Google/Bing, we keep the same logic (of allowing some query results
+        // not to have an answer) just-in-case.
+        unsigned int response_correct_counter_uint =
+            static_cast<unsigned int>(response_correct_counter);
+        ASSERT_GE(response_correct_counter_uint,
+                  (((CLIENT_SIZE * RESPONSE_SIZE) * 2) / 3) /
+                  SERVER_ADDRESS_NUM);
+    }
 }
 
 TEST(https_client_test, one_client_with_one_request)
