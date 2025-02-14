@@ -31,7 +31,7 @@ jobs:
         compiler: [ 'gcc' ]
         sanitizer: [ 'address' ]
         tls: [ 'true' ]
-        def_debug: [ 'true' ]
+        def_debug: [ 'true', 'false' ]
         flibev: [ 'true' ]
         # !!!!!!!!
 #         os: [ 'debian:stable' ]

@@ -356,6 +356,7 @@ TEST(https_client_test, one_client_with_one_request)
     server.serveThreaded();
 
     const std::string server_address = getServerUrl(server);
+    std::cout << "server_address " << server_address;
 
     Http::Experimental::Client client;
     /* !!!!!!!!

@@ -815,6 +815,9 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
             break;
         }
         last_sock_connect_errno = errno;
+        // !!!!!!!!
+        PS_LOG_INFO_ARGS("sfd %d, ai_addrlen %d, ai_addr %s",
+                         sfd, ai_addrlen, (char *)(&ai_addr));
     }
     PS_LOG_DEBUG_ARGS("mConnecting = %d", mConnecting);
     if (!mConnecting)
