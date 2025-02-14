@@ -689,6 +689,20 @@ static SSL_CTX * makeSslCtx(const char * _hostChainPemFile)
 
 // ---------------------------------------------------------------------------
 
+// !!!!!!!!
+static constexpr char hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
+                           '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+static std::string hexStr(unsigned char *data, int len)
+{
+  std::string s(len * 2, ' ');
+  for (int i = 0; i < len; ++i) {
+    s[2 * i]     = hexmap[(data[i] & 0xF0) >> 4];
+    s[2 * i + 1] = hexmap[data[i] & 0x0F];
+  }
+  return s;
+}
+
 SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
                    int _domain, // AF_INET or AF_INET6
                    bool _doVerification,
@@ -816,8 +830,10 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         }
         last_sock_connect_errno = errno;
         // !!!!!!!!
+        const std::string ai_addr_as_str(hexStr((unsigned char *)(&ai_addr),
+                                                (int) ai_addrlen));
         PS_LOG_INFO_ARGS("sfd %d, ai_addrlen %d, ai_addr %s",
-                         sfd, ai_addrlen, (char *)(&ai_addr));
+                         sfd, ai_addrlen, ai_addr_as_str.c_str());
     }
     PS_LOG_DEBUG_ARGS("mConnecting = %d", mConnecting);
     if (!mConnecting)
