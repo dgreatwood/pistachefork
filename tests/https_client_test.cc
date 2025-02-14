@@ -389,6 +389,54 @@ TEST(https_client_test, one_client_with_one_request)
     ASSERT_TRUE(done);
 }
 
+TEST(https_client_test, one_client_with_one_request_again)
+{
+    PS_TIMEDBG_START;
+
+    const Pistache::Address address("localhost", Pistache::Port(0));
+
+    Http::Endpoint server(address);
+    auto flags       = Tcp::Options::ReuseAddr;
+    auto server_opts = Http::Endpoint::options().flags(flags);
+    server.init(server_opts);
+    server.setHandler(Http::make_handler<HelloHandler>());
+    server.useSSL("./certs/server.crt", "./certs/server.key");
+    server.serveThreaded();
+
+    const std::string server_address = getServerUrl(server);
+
+    Http::Experimental::Client client;
+    /* !!!!!!!!
+    auto opts = Http::Experimental::Client::options().clientSslVerification(
+        Pistache::Http::Experimental::SslVerification::Off);
+    client.init(opts);
+    */
+    client.init();
+
+    auto rb       = client.get(server_address);
+    /* !!!!!!!!
+    auto response = rb.header<Http::Header::Connection>(Http::ConnectionControl::KeepAlive)
+                        .send();
+    */
+    auto response = rb.send();
+
+    bool done = false;
+    response.then(
+        [&done](Http::Response rsp) {
+            if (rsp.code() == Http::Code::Ok)
+                done = true;
+        },
+        Async::IgnoreException);
+
+    Async::Barrier<Http::Response> barrier(response);
+    barrier.wait_for(std::chrono::seconds(5));
+
+    server.shutdown();
+    client.shutdown();
+
+    ASSERT_TRUE(done);
+}
+
 TEST(https_client_test, ssl_verify_locations)
 {
     PS_TIMEDBG_START;

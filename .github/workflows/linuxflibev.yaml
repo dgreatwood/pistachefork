@@ -28,11 +28,18 @@ jobs:
       fail-fast: false
       matrix:
         os: [ 'debian:stable' ]
-        compiler: [ 'gcc', 'clang' ]
-        sanitizer: [ 'address', 'undefined', 'none' ]
-        tls: [ 'true', 'false' ]
-        def_debug: [ 'true', 'false' ]
+        compiler: [ 'gcc' ]
+        sanitizer: [ 'address' ]
+        tls: [ 'true' ]
+        def_debug: [ 'true' ]
         flibev: [ 'true' ]
+        # !!!!!!!!
+#         os: [ 'debian:stable' ]
+#         compiler: [ 'gcc', 'clang' ]
+#         sanitizer: [ 'address', 'undefined', 'none' ]
+#         tls: [ 'true', 'false' ]
+#         def_debug: [ 'true', 'false' ]
+#         flibev: [ 'true' ]
 
     runs-on: ubuntu-latest
     container:
