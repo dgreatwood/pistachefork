@@ -830,7 +830,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         }
         last_sock_connect_errno = errno;
         // !!!!!!!!
-        const std::string ai_addr_as_str(hexStr((unsigned char *)(&ai_addr),
+        const std::string ai_addr_as_str(hexStr((unsigned char *)(ai_addr),
                                                 (int) ai_addrlen));
         PS_LOG_INFO_ARGS("sfd %d, ai_addrlen %d, ai_addr %s",
                          sfd, ai_addrlen, ai_addr_as_str.c_str());
