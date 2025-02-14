@@ -766,7 +766,8 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
       int tcp_prot_num          = pe ? pe->p_proto : 6;
     #ifdef DEBUG
     #ifdef __linux__
-      assert(tcp_prot_num == SOL_TCP);
+      if (tcp_prot_num != SOL_TCP)
+          SSL_LOG_WRN_AND_THROW("tcp_prot_num != SOL_TCP");
     #endif
     #endif
     #else
@@ -781,6 +782,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
 
     mConnecting = 0;
     struct addrinfo * this_addrinfo;
+    int last_sock_connect_errno = -1;
     for(this_addrinfo = addrinfo_ptr; this_addrinfo;
         this_addrinfo = this_addrinfo->ai_next)
     {
@@ -812,10 +814,20 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
             mConnecting = 1; //true
             break;
         }
+        last_sock_connect_errno = errno;
     }
     PS_LOG_DEBUG_ARGS("mConnecting = %d", mConnecting);
     if (!mConnecting)
+    {
+        if (last_sock_connect_errno >= 0)
+        {
+            PST_DECL_SE_ERR_P_EXTRA;
+            PS_LOG_INFO_ARGS("Connecting last non-blocking errno %d, %s",
+                             last_sock_connect_errno,
+                             PST_STRERROR_R_SE_ERR(last_sock_connect_errno));
+        }
         SSL_LOG_WRN_CLOSE_AND_THROW("Failed to start connecting");
+    }
 
     // Save a pointer to mDoVerification for use in verify_callback
     SSL_set_ex_data(mSsl, 0, &mDoVerification); // 0 is "idx" for app data
