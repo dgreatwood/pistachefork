@@ -358,13 +358,20 @@ TEST(https_client_test, one_client_with_one_request)
     const std::string server_address = getServerUrl(server);
 
     Http::Experimental::Client client;
+    /* !!!!!!!!
     auto opts = Http::Experimental::Client::options().clientSslVerification(
         Pistache::Http::Experimental::SslVerification::Off);
     client.init(opts);
+    */
+    client.init();
 
     auto rb       = client.get(server_address);
+    /* !!!!!!!!
     auto response = rb.header<Http::Header::Connection>(Http::ConnectionControl::KeepAlive)
                         .send();
+    */
+    auto response = rb.send();
+
     bool done = false;
     response.then(
         [&done](Http::Response rsp) {
