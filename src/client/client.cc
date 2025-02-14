@@ -998,12 +998,13 @@ namespace Pistache::Http::Experimental
                 do_verification = false;
         }
 
-        std::shared_ptr<SslConnection> ssl_conn(std::make_shared<SslConnection>(domain,
-                                                                                addr.port(),
-                                                                                addr.family(), // domain
-                                                                                addr.page(),
-                                                                                do_verification,
-                                                                                &host_cpem_file));
+        std::shared_ptr<SslConnection> ssl_conn(
+            std::make_shared<SslConnection>(domain,
+                                            addr.port(),
+                                            addr.family(), // domain
+                                            addr.page(),
+                                            do_verification,
+                                            &host_cpem_file));
         if (!ssl_conn)
             throw std::runtime_error("Failed to connect");
 

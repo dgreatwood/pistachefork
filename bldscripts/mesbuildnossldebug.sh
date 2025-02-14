@@ -29,8 +29,7 @@ else
     -DPISTACHE_USE_CONTENT_ENCODING_BROTLI=true \
     -DPISTACHE_USE_CONTENT_ENCODING_ZSTD=true \
     -DPISTACHE_DEBUG=true \
-    --prefix="${MESON_PREFIX_DIR}" \
-#    -DPISTACHE_FORCE_LIBEVENT=true
+    --prefix="${MESON_PREFIX_DIR}"
 
 fi
 
