@@ -245,7 +245,23 @@ namespace Pistache::Http::Experimental
                 , connection(connection)
                 , addr_len(_addr_len)
             {
-                std::memcpy(&addr, _addr, addr_len);
+                // Note: Sanitizer may object to invocation of memcpy with null
+                // _addr, even if addr_len is zero
+                if (_addr_len)
+                {
+                    if (addr_len > sizeof(addr))
+                    {
+                        PS_LOG_ERR_ARGS("addr_len %d bigger than %d",
+                                        addr_len, sizeof(addr));
+                        throw std::invalid_argument("addr_len too big");
+                    }
+
+                    std::memcpy(&addr, _addr, addr_len);
+                }
+                else
+                {
+                    std::memset(&addr, 0, sizeof(addr));
+                }
             }
 
             const sockaddr* getAddr() const
@@ -998,12 +1014,13 @@ namespace Pistache::Http::Experimental
                 do_verification = false;
         }
 
-        std::shared_ptr<SslConnection> ssl_conn(std::make_shared<SslConnection>(domain,
-                                                                                addr.port(),
-                                                                                addr.family(), // domain
-                                                                                addr.page(),
-                                                                                do_verification,
-                                                                                &host_cpem_file));
+        std::shared_ptr<SslConnection> ssl_conn(
+            std::make_shared<SslConnection>(domain,
+                                            addr.port(),
+                                            addr.family(), // domain
+                                            addr.page(),
+                                            do_verification,
+                                            &host_cpem_file));
         if (!ssl_conn)
             throw std::runtime_error("Failed to connect");
 
