@@ -73,7 +73,7 @@ namespace Pistache
 
     IP::IP()
     {
-        addr_.ss_family = AF_INET6;
+        addr_.ss_family = AF_UNSPEC;
     }
 
     IP::IP(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
