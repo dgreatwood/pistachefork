@@ -795,14 +795,20 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
 
         // !!!!!!!!
         // em_socket_t sfd = PST_SOCK_SOCKET(_domain, SOCK_STREAM, 0);
+        /*
         sfd = PST_SOCK_SOCKET(this_addrinfo->ai_family,
                               this_addrinfo->ai_socktype,
                               this_addrinfo->ai_protocol);
+        */
+        sfd = PST_SOCK_SOCKET(this_addrinfo->ai_family, SOCK_STREAM, 0);
         if (sfd < 0)
         {
             PS_LOG_INFO("Failed to open socket");
             continue;
         }
+
+        // !!!!!!!!!
+        PS_LOG_INFO_ARGS("sfd %d", sfd);
 
         #ifdef _USE_LIBEVENT
         // We're openning a connection to a remote resource - I guess
