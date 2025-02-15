@@ -80,7 +80,8 @@ namespace Pistache::Http::Experimental {
         PS_LOG_WARNING(__MSG);                        \
         auto current_fd = mFd;                        \
         mFd = PS_FD_EMPTY;                            \
-        CLOSE_FD(current_fd);                         \
+        if (current_fd != PS_FD_EMPTY)                \
+            CLOSE_FD(current_fd);                     \
         throw std::runtime_error(__MSG);              \
     }
 
@@ -89,14 +90,17 @@ namespace Pistache::Http::Experimental {
         PS_LOG_WARNING(__MSG);                        \
         auto current_fd = mFd;                        \
         mFd = PS_FD_EMPTY;                            \
-        CLOSE_FD(current_fd);                         \
+        if (current_fd != PS_FD_EMPTY)                \
+            CLOSE_FD(current_fd);                     \
     }
 
 #define SSL_CLOSE                                     \
     {                                                 \
+        PS_LOG_WARNING("Close"); /* !!!!!!!! */       \
         auto current_fd = mFd;                        \
         mFd = PS_FD_EMPTY;                            \
-        CLOSE_FD(current_fd);                         \
+        if (current_fd != PS_FD_EMPTY)                \
+            CLOSE_FD(current_fd);                     \
     }
 
 // ---------------------------------------------------------------------------
@@ -966,7 +970,10 @@ SslAsync::~SslAsync()
     if (mCtxt)
         SSL_CTX_free(mCtxt);
     if (mFd != PS_FD_EMPTY)
+    {
+        PS_LOG_INFO("Closing in destructor");
         CLOSE_FD(mFd);
+    }
 }
 
 // ---------------------------------------------------------------------------

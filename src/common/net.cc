@@ -119,6 +119,8 @@ namespace Pistache
     {
         if (addr->sa_family == AF_INET)
         {
+            PS_LOG_INFO("AF_INET"); /// !!!!!!!!!
+
             const struct sockaddr_in* in_addr = reinterpret_cast<const struct sockaddr_in*>(addr);
             struct sockaddr_in* ss_in_addr    = reinterpret_cast<struct sockaddr_in*>(&addr_);
 
@@ -129,6 +131,8 @@ namespace Pistache
         }
         else if (addr->sa_family == AF_INET6)
         {
+            PS_LOG_INFO("AF_INET6"); /// !!!!!!!!!
+
             const struct sockaddr_in6* in_addr = reinterpret_cast<const struct sockaddr_in6*>(addr);
             struct sockaddr_in6* ss_in_addr    = reinterpret_cast<struct sockaddr_in6*>(&addr_);
 
@@ -140,6 +144,7 @@ namespace Pistache
         }
         else if (addr->sa_family == AF_UNIX)
         {
+            PS_LOG_INFO("AF_UNIX"); /// !!!!!!!!!
             const struct sockaddr_un* un_addr = reinterpret_cast<const struct sockaddr_un*>(addr);
             struct sockaddr_un* ss_un_addr    = reinterpret_cast<struct sockaddr_un*>(&addr_);
 
@@ -148,6 +153,7 @@ namespace Pistache
         }
         else
         {
+            PS_LOG_WARNING_ARGS("Invalid socket family %d", addr->sa_family);
             throw std::invalid_argument("Invalid socket family");
         }
     }
@@ -513,6 +519,7 @@ namespace Pistache
 
         ip_   = IP(result->ai_addr);
         port_ = Port(ip_.getPort());
+        PS_LOG_INFO_ARGS("Family %d", ip_.getFamily()); // !!!!!!!!
 
         // Check that the port has not overflowed while calling getaddrinfo()
         if (parser.hasNumericPort() && port_ != std::strtol(addrinfo_port, nullptr, 10))
