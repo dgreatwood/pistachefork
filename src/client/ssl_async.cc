@@ -749,12 +749,17 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     if (!_hostPort)
         _hostPort = 443;
 
+    struct addrinfo hints = {};
+    hints.ai_family       = AF_UNSPEC;
+    hints.ai_socktype     = SOCK_STREAM;
+    hints.ai_protocol     = IPPROTO_TCP;
+
     std::string host_port_as_sstr(std::to_string(_hostPort));
     struct addrinfo * addrinfo_ptr = NULL;
     PS_LOG_DEBUG_ARGS("Doing getaddrinfo. _hostName %s, _hostPort %u",
                       _hostName, static_cast<unsigned int>(_hostPort));
     int res = getaddrinfo(_hostName, host_port_as_sstr.c_str(),
-                          NULL, &addrinfo_ptr);
+                          &hints, &addrinfo_ptr);
     PS_LOG_DEBUG_ARGS("getaddrinfo res %d", res);
     if (res != 0)
         SSL_LOG_WRN_AND_THROW("local getaddrinfo failed");
