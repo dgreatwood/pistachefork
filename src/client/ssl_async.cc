@@ -69,10 +69,11 @@ namespace Pistache::Http::Experimental {
 
 // ---------------------------------------------------------------------------
 
-#define SSL_LOG_WRN_AND_THROW(__MSG)            \
-    {                                           \
-        PS_LOG_WARNING(__MSG);                  \
-        throw std::runtime_error(__MSG);        \
+#define SSL_LOG_WRN_AND_THROW(__MSG)                    \
+    {                                                   \
+        PS_LOG_WARNING(__MSG);                          \
+        if (addrinfo_ptr) ::freeaddrinfo(addrinfo_ptr);        \
+        throw std::runtime_error(__MSG);                \
     }
 
 #define SSL_LOG_WRN_CLOSE_AND_THROW(__MSG)            \
@@ -82,6 +83,7 @@ namespace Pistache::Http::Experimental {
         mFd = PS_FD_EMPTY;                            \
         if (current_fd != PS_FD_EMPTY)                \
             CLOSE_FD(current_fd);                     \
+        if (addrinfo_ptr) ::freeaddrinfo(addrinfo_ptr);      \
         throw std::runtime_error(__MSG);              \
     }
 
@@ -92,6 +94,8 @@ namespace Pistache::Http::Experimental {
         mFd = PS_FD_EMPTY;                            \
         if (current_fd != PS_FD_EMPTY)                \
             CLOSE_FD(current_fd);                     \
+        if (addrinfo_ptr) ::freeaddrinfo(addrinfo_ptr);      \
+        addrinfo_ptr = nullptr;                       \
     }
 
 #define SSL_CLOSE                                     \
@@ -101,6 +105,8 @@ namespace Pistache::Http::Experimental {
         mFd = PS_FD_EMPTY;                            \
         if (current_fd != PS_FD_EMPTY)                \
             CLOSE_FD(current_fd);                     \
+        if (addrinfo_ptr) ::freeaddrinfo(addrinfo_ptr);      \
+        addrinfo_ptr = nullptr;                       \
     }
 
 // ---------------------------------------------------------------------------
@@ -734,6 +740,8 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     mDoVerification(_doVerification),
     mSsl(NULL), mCtxt(NULL)
 {
+    struct addrinfo * addrinfo_ptr = NULL;
+
     if (!_hostName)
     {
         errno = EINVAL;
@@ -753,9 +761,8 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     hints.ai_family       = AF_UNSPEC;
     hints.ai_socktype     = SOCK_STREAM;
     hints.ai_protocol     = IPPROTO_TCP;
-
     std::string host_port_as_sstr(std::to_string(_hostPort));
-    struct addrinfo * addrinfo_ptr = NULL;
+
     PS_LOG_INFO_ARGS("Doing getaddrinfo. _hostName %s, _hostPort-str %",
                      _hostName, host_port_as_sstr.c_str()); // !!!!!!!!
     int res = getaddrinfo(_hostName, host_port_as_sstr.c_str(),
@@ -960,6 +967,10 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     PS_LOG_INFO("Here"); // !!!!!!!!!
 
     checkSocket(false/*not forAppRead*/);
+
+    PS_LOG_INFO("Here"); // !!!!!!!!!
+
+    if (addrinfo_ptr) ::freeaddrinfo(addrinfo_ptr);
 
     PS_LOG_INFO("Here"); // !!!!!!!!!
 }
