@@ -18,6 +18,7 @@
 #include <string>
 
 #include <pistache/winornix.h>
+#include <pistache/pist_syslog.h>
 
 #include PST_NETDB_HDR
 
@@ -75,6 +76,8 @@ namespace Pistache
                 addrs = nullptr;
             }
 
+            PS_LOG_INFO_ARGS("Doing getaddrinfo. node %s, service %u",
+                             node, service); // !!!!!!!!
             return ::getaddrinfo(node, service, hints, &addrs);
         }
 

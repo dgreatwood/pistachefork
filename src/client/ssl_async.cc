@@ -756,8 +756,8 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
 
     std::string host_port_as_sstr(std::to_string(_hostPort));
     struct addrinfo * addrinfo_ptr = NULL;
-    PS_LOG_DEBUG_ARGS("Doing getaddrinfo. _hostName %s, _hostPort %u",
-                      _hostName, static_cast<unsigned int>(_hostPort));
+    PS_LOG_INFO_ARGS("Doing getaddrinfo. _hostName %s, _hostPort-str %",
+                     _hostName, host_port_as_sstr.c_str()); // !!!!!!!!
     int res = getaddrinfo(_hostName, host_port_as_sstr.c_str(),
                           &hints, &addrinfo_ptr);
     PS_LOG_DEBUG_ARGS("getaddrinfo res %d", res);
