@@ -786,6 +786,8 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     for(this_addrinfo = addrinfo_ptr; this_addrinfo;
         this_addrinfo = this_addrinfo->ai_next)
     {
+        sfd = -1;
+
         struct sockaddr * ai_addr = this_addrinfo->ai_addr;
         if (!ai_addr)
             continue;
@@ -831,6 +833,8 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         mFd = sfd;
         #endif
 
+        PS_LOG_INFO("Here"); // !!!!!!!!!
+
         // Set the socket to be non blocking.
         int flags = PST_FCNTL(sfd, PST_F_GETFL, 0);
         if (flags == PST_FCNTL_GETFL_UNKNOWN)
@@ -840,6 +844,8 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
             SSL_LOG_WRN_AND_CLOSE("could not fcntl");
             continue;
         }
+
+        PS_LOG_INFO("Here"); // !!!!!!!!!
 
         PST_SOCK_OPT_VAL_TYPICAL_T one = 1;
         if (::setsockopt(
@@ -851,8 +857,11 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
             continue;
         }
 
+        PS_LOG_INFO("Here"); // !!!!!!!!!
+
         int connect_res = PST_SOCK_CONNECT(sfd, ai_addr,
                                            static_cast<socklen_t>(ai_addrlen));
+        PS_LOG_INFO("Here"); // !!!!!!!!!
         PS_LOG_DEBUG_ARGS("Socket connect res = %d", connect_res);
         if (connect_res != -1)
         {
@@ -879,7 +888,9 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         PS_LOG_INFO_ARGS("sfd %d, ai_addrlen %d, ai_addr %s",
                          sfd, ai_addrlen, ai_addr_as_str.c_str());
 
+        PS_LOG_INFO("Here"); // !!!!!!!!!
         SSL_CLOSE;
+        PS_LOG_INFO("Here"); // !!!!!!!!!
     }
     PS_LOG_DEBUG_ARGS("mConnecting = %d", mConnecting);
     if (!mConnecting)
