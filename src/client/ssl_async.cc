@@ -905,8 +905,12 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         SSL_LOG_WRN_CLOSE_AND_THROW("Failed to start connecting");
     }
 
+    PS_LOG_INFO("Here"); // !!!!!!!!!
+
     // Save a pointer to mDoVerification for use in verify_callback
     SSL_set_ex_data(mSsl, 0, &mDoVerification); // 0 is "idx" for app data
+
+    PS_LOG_INFO("Here"); // !!!!!!!!!
 
     // Note: SSL_set_tlsext_host_name is required to get _hostName google.com
     // to work correctly for verify / verify_callback. Cf.:
@@ -915,9 +919,13 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     if (!SSL_set_tlsext_host_name(mSsl, _hostName))
         SSL_LOG_WRN_CLOSE_AND_THROW("could not SSL_set_tlsext_host_name");
 
+    PS_LOG_INFO("Here"); // !!!!!!!!!
+
     SSL_set_hostflags(mSsl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
     if (!SSL_set1_host(mSsl, _hostName))
         SSL_LOG_WRN_CLOSE_AND_THROW("could not SSL_set1_host");
+
+    PS_LOG_INFO("Here"); // !!!!!!!!!
 
     if (!SSL_set_fd(mSsl,
                     #ifdef _IS_WINDOWS
@@ -936,9 +944,15 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
             ))
         SSL_LOG_WRN_CLOSE_AND_THROW("could not SSL_set_fd");
 
+    PS_LOG_INFO("Here"); // !!!!!!!!!
+
     SSL_set_connect_state(mSsl);
 
+    PS_LOG_INFO("Here"); // !!!!!!!!!
+
     checkSocket(false/*not forAppRead*/);
+
+    PS_LOG_INFO("Here"); // !!!!!!!!!
 }
 
 // ---------------------------------------------------------------------------
