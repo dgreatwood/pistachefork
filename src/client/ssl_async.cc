@@ -71,17 +71,32 @@ namespace Pistache::Http::Experimental {
 
 #define SSL_LOG_WRN_AND_THROW(__MSG)            \
     {                                           \
-        PS_LOG_WARNING(__MSG);                      \
+        PS_LOG_WARNING(__MSG);                  \
         throw std::runtime_error(__MSG);        \
     }
 
 #define SSL_LOG_WRN_CLOSE_AND_THROW(__MSG)            \
     {                                                 \
-        PS_LOG_WARNING(__MSG);                            \
+        PS_LOG_WARNING(__MSG);                        \
         auto current_fd = mFd;                        \
         mFd = PS_FD_EMPTY;                            \
         CLOSE_FD(current_fd);                         \
         throw std::runtime_error(__MSG);              \
+    }
+
+#define SSL_LOG_WRN_AND_CLOSE(__MSG)                  \
+    {                                                 \
+        PS_LOG_WARNING(__MSG);                        \
+        auto current_fd = mFd;                        \
+        mFd = PS_FD_EMPTY;                            \
+        CLOSE_FD(current_fd);                         \
+    }
+
+#define SSL_CLOSE                                     \
+    {                                                 \
+        auto current_fd = mFd;                        \
+        mFd = PS_FD_EMPTY;                            \
+        CLOSE_FD(current_fd);                         \
     }
 
 // ---------------------------------------------------------------------------
@@ -746,33 +761,9 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     if (!mCtxt)
         SSL_LOG_WRN_AND_THROW("could not SSL_CTX_new");
 
-    em_socket_t sfd = PST_SOCK_SOCKET(_domain, SOCK_STREAM, 0);
-    if (sfd < 0)
-        SSL_LOG_WRN_AND_THROW("could not create socket");
-
-    #ifdef _USE_LIBEVENT
-    // We're openning a connection to a remote resource - I guess
-    // it makes sense to allow either read or write
-    mFd = TRY_NULL_RET(EventMethFns::em_event_new(
-                           sfd, // pre-allocated file desc
-                           EVM_READ | EVM_WRITE | EVM_PERSIST | EVM_ET,
-                           F_SETFDL_NOTHING, // setfd
-                           PST_O_NONBLOCK // setfl
-                           ));
-    #else
-    mFd = sfd;
-    #endif
-
     mSsl = SSL_new(mCtxt);
     if (!mSsl)
         SSL_LOG_WRN_AND_THROW("could not SSL_new");
-
-    // Set the socket to be non blocking.
-    int flags = PST_FCNTL(sfd, PST_F_GETFL, 0);
-    if (flags == PST_FCNTL_GETFL_UNKNOWN)
-        flags = 0;
-    if (PST_FCNTL(sfd, PST_F_SETFL, flags | PST_O_NONBLOCK))
-        SSL_LOG_WRN_CLOSE_AND_THROW("could not fcntl");
 
     #ifdef _USE_LIBEVENT_LIKE_APPLE
       // SOL_TCP not defined in macOS Nov 2023
@@ -787,16 +778,11 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     #else
       int tcp_prot_num = SOL_TCP;
     #endif
-    PST_SOCK_OPT_VAL_TYPICAL_T one = 1;
-    if (::setsockopt(
-            sfd, tcp_prot_num, TCP_NODELAY,
-            reinterpret_cast<PST_SOCK_OPT_VAL_PTR_T>(&one),
-            sizeof(one)))
-        SSL_LOG_WRN_CLOSE_AND_THROW("could not setsockopt");
 
     mConnecting = 0;
     struct addrinfo * this_addrinfo;
     int last_sock_connect_errno = -1;
+    em_socket_t sfd = -1;
     for(this_addrinfo = addrinfo_ptr; this_addrinfo;
         this_addrinfo = this_addrinfo->ai_next)
     {
@@ -807,12 +793,64 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         if (!ai_addrlen)
             continue;
 
+        // !!!!!!!!
+        // em_socket_t sfd = PST_SOCK_SOCKET(_domain, SOCK_STREAM, 0);
+        sfd = PST_SOCK_SOCKET(this_addrinfo->ai_family,
+                              this_addrinfo->ai_socktype,
+                              this_addrinfo->ai_protocol);
+        if (sfd < 0)
+        {
+            PS_LOG_INFO("Failed to open socket");
+            continue;
+        }
+
+        #ifdef _USE_LIBEVENT
+        // We're openning a connection to a remote resource - I guess
+        // it makes sense to allow either read or write
+        try {
+            mFd = EventMethFns::em_event_new(
+                sfd,
+                EVM_READ | EVM_WRITE | EVM_PERSIST | EVM_ET,
+                F_SETFDL_NOTHING, // setfd
+                PST_O_NONBLOCK // setfl
+                );
+        }
+        catch(...) { }
+        if (!mFd)
+        {
+            SSL_LOG_WRN_AND_CLOSE("could not create an em_event_new");
+            continue;
+        }
+        #else
+        mFd = sfd;
+        #endif
+
+        // Set the socket to be non blocking.
+        int flags = PST_FCNTL(sfd, PST_F_GETFL, 0);
+        if (flags == PST_FCNTL_GETFL_UNKNOWN)
+            flags = 0;
+        if (PST_FCNTL(sfd, PST_F_SETFL, flags | PST_O_NONBLOCK))
+        {
+            SSL_LOG_WRN_AND_CLOSE("could not fcntl");
+            continue;
+        }
+
+        PST_SOCK_OPT_VAL_TYPICAL_T one = 1;
+        if (::setsockopt(
+                sfd, tcp_prot_num, TCP_NODELAY,
+                reinterpret_cast<PST_SOCK_OPT_VAL_PTR_T>(&one),
+                sizeof(one)))
+        {
+            SSL_LOG_WRN_AND_CLOSE("could not setsockopt");
+            continue;
+        }
+
         int connect_res = PST_SOCK_CONNECT(sfd, ai_addr,
                                            static_cast<socklen_t>(ai_addrlen));
         PS_LOG_DEBUG_ARGS("Socket connect res = %d", connect_res);
         if (connect_res != -1)
         {
-            PS_LOG_WARNING("Expecting non-blocking connect for SSL");
+            SSL_LOG_WRN_AND_CLOSE("Expecting non-blocking connect for SSL");
             errno = EINVAL;
             continue;
         }
@@ -832,8 +870,10 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         // !!!!!!!!
         const std::string ai_addr_as_str(hexStr((unsigned char *)(ai_addr),
                                                 (int) ai_addrlen));
-        PS_LOG_INFO_ARGS("sfd %d, domain %d, ai_addrlen %d, ai_addr %s",
-                         sfd, _domain, ai_addrlen, ai_addr_as_str.c_str());
+        PS_LOG_INFO_ARGS("sfd %d, ai_addrlen %d, ai_addr %s",
+                         sfd, ai_addrlen, ai_addr_as_str.c_str());
+
+        SSL_CLOSE;
     }
     PS_LOG_DEBUG_ARGS("mConnecting = %d", mConnecting);
     if (!mConnecting)
