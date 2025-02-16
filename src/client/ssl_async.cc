@@ -726,7 +726,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
                           &hints, &addrinfo_ptr);
     PS_LOG_DEBUG_ARGS("getaddrinfo res %d", res);
     if (res != 0)
-        SSL_LOG_WRN_CLOSE_AND_THROW("local getaddrinfo failed");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Local getaddrinfo failed");
 
     initOpenSslIfNotAlready();
 
@@ -736,7 +736,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
 
     em_socket_t sfd = PST_SOCK_SOCKET(_domain, SOCK_STREAM, 0);
     if (sfd < 0)
-        SSL_LOG_WRN_CLOSE_AND_THROW("could not create socket");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Could not create socket");
 
     #ifdef _USE_LIBEVENT
     // We're openning a connection to a remote resource - I guess
@@ -772,7 +772,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     if (flags == PST_FCNTL_GETFL_UNKNOWN)
         flags = 0;
     if (PST_FCNTL(sfd, PST_F_SETFL, flags | PST_O_NONBLOCK))
-        SSL_LOG_WRN_CLOSE_AND_THROW("could not fcntl");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Could not fcntl");
 
     #ifdef _USE_LIBEVENT_LIKE_APPLE
       // SOL_TCP not defined in macOS Nov 2023
@@ -792,7 +792,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
             sfd, tcp_prot_num, TCP_NODELAY,
             reinterpret_cast<PST_SOCK_OPT_VAL_PTR_T>(&one),
             sizeof(one)))
-        SSL_LOG_WRN_CLOSE_AND_THROW("could not setsockopt");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Could not setsockopt");
 
     mConnecting = 0;
     struct addrinfo * this_addrinfo;
@@ -854,11 +854,11 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     //     https://docs.openssl.org/3.2/man7/ossl-guide-tls-client-block/
     //                                            #setting-the-servers-hostname
     if (!SSL_set_tlsext_host_name(mSsl, _hostName))
-        SSL_LOG_WRN_CLOSE_AND_THROW("could not SSL_set_tlsext_host_name");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Could not SSL_set_tlsext_host_name");
 
     SSL_set_hostflags(mSsl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
     if (!SSL_set1_host(mSsl, _hostName))
-        SSL_LOG_WRN_CLOSE_AND_THROW("could not SSL_set1_host");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Could not SSL_set1_host");
 
     if (!SSL_set_fd(mSsl,
                     #ifdef _IS_WINDOWS
@@ -875,7 +875,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
                         )
                     #endif
             ))
-        SSL_LOG_WRN_CLOSE_AND_THROW("could not SSL_set_fd");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Could not SSL_set_fd");
 
     SSL_set_connect_state(mSsl);
 
