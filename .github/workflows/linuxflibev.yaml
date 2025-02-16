@@ -8,11 +8,11 @@ on:
   push:
     branches:
     - master
-    - sslclientsub
+    - sslclientsub2
   pull_request:
     branches:
     - master
-    - sslclientsub
+    - sslclientsub2
 
 defaults:
   run:
