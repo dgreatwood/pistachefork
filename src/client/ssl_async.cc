@@ -178,10 +178,13 @@ SslAsync::ACTION SslAsync::ssl_connect()
                 return CONTINUE;
             }
 
+            #ifdef SSL_ERROR_WANT_RETRY_VERIFY
+            // Not defined in RedHat / ubi8
             if (ssl_error == SSL_ERROR_WANT_RETRY_VERIFY) {
                 PS_LOG_DEBUG("SSL_ERROR_WANT_RETRY_VERIFY");
                 return CONTINUE;
             }
+            #endif
 
             #ifdef DEBUG
             const char* error_string = ERR_error_string(ssl_error, NULL);
