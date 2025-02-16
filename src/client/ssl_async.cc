@@ -69,19 +69,32 @@ namespace Pistache::Http::Experimental {
 
 // ---------------------------------------------------------------------------
 
-#define SSL_LOG_WRN_AND_THROW(__MSG)            \
-    {                                           \
-        PS_LOG_WARNING(__MSG);                      \
-        throw std::runtime_error(__MSG);        \
+#define SSL_LOG_WRN_CLOSE_AND_THROW(__MSG)                \
+    {                                                     \
+        PS_LOG_WARNING(__MSG);                            \
+        auto current_fd = mFd;                            \
+        mFd = PS_FD_EMPTY;                                \
+        if (current_fd != PS_FD_EMPTY)                    \
+            CLOSE_FD(current_fd);                         \
+        if (addrinfo_ptr) ::freeaddrinfo(addrinfo_ptr);   \
+        throw std::runtime_error(__MSG);                  \
     }
 
-#define SSL_LOG_WRN_CLOSE_AND_THROW(__MSG)            \
-    {                                                 \
+#define SSL_LOG_WRN_AND_CLOSE(__MSG)                      \
+    {                                                     \
         PS_LOG_WARNING(__MSG);                            \
-        auto current_fd = mFd;                        \
-        mFd = PS_FD_EMPTY;                            \
-        CLOSE_FD(current_fd);                         \
-        throw std::runtime_error(__MSG);              \
+        auto current_fd = mFd;                            \
+        mFd = PS_FD_EMPTY;                                \
+        if (current_fd != PS_FD_EMPTY)                    \
+            CLOSE_FD(current_fd);                         \
+    }
+
+#define SSL_CLOSE                                         \
+    {                                                     \
+        auto current_fd = mFd;                            \
+        mFd = PS_FD_EMPTY;                                \
+        if (current_fd != PS_FD_EMPTY)                    \
+            CLOSE_FD(current_fd);                         \
     }
 
 // ---------------------------------------------------------------------------
@@ -701,57 +714,75 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     mDoVerification(_doVerification),
     mSsl(NULL), mCtxt(NULL)
 {
+    struct addrinfo * addrinfo_ptr = NULL;
+
     if (!_hostName)
     {
         errno = EINVAL;
-        SSL_LOG_WRN_AND_THROW("Null hostName");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Null hostName");
     }
 
     if (!_hostChainPemFile)
     {
         errno = EINVAL;
-        SSL_LOG_WRN_AND_THROW("Null hostChainPemFile");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Null hostChainPemFile");
     }
 
     if (!_hostPort)
         _hostPort = 443;
 
+    struct addrinfo hints = {};
+    hints.ai_family       = AF_UNSPEC;
+    hints.ai_socktype     = SOCK_STREAM;
+    hints.ai_protocol     = IPPROTO_TCP;
     std::string host_port_as_sstr(std::to_string(_hostPort));
-    struct addrinfo * addrinfo_ptr = NULL;
+
     PS_LOG_DEBUG_ARGS("Doing getaddrinfo. _hostName %s, _hostPort %u",
                       _hostName, static_cast<unsigned int>(_hostPort));
     int res = getaddrinfo(_hostName, host_port_as_sstr.c_str(),
-                          NULL, &addrinfo_ptr);
+                          &hints, &addrinfo_ptr);
     PS_LOG_DEBUG_ARGS("getaddrinfo res %d", res);
     if (res != 0)
-        SSL_LOG_WRN_AND_THROW("local getaddrinfo failed");
+        SSL_LOG_WRN_CLOSE_AND_THROW("local getaddrinfo failed");
 
     initOpenSslIfNotAlready();
 
     mCtxt = makeSslCtx(_hostChainPemFile);
     if (!mCtxt)
-        SSL_LOG_WRN_AND_THROW("could not SSL_CTX_new");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Could not SSL_CTX_new");
 
     em_socket_t sfd = PST_SOCK_SOCKET(_domain, SOCK_STREAM, 0);
     if (sfd < 0)
-        SSL_LOG_WRN_AND_THROW("could not create socket");
+        SSL_LOG_WRN_CLOSE_AND_THROW("could not create socket");
 
     #ifdef _USE_LIBEVENT
     // We're openning a connection to a remote resource - I guess
     // it makes sense to allow either read or write
-    mFd = TRY_NULL_RET(EventMethFns::em_event_new(
+    try {
+        mFd = TRY_NULL_RET(EventMethFns::em_event_new(
                            sfd, // pre-allocated file desc
                            EVM_READ | EVM_WRITE | EVM_PERSIST | EVM_ET,
                            F_SETFDL_NOTHING, // setfd
                            PST_O_NONBLOCK // setfl
                            ));
+    }
+    catch(...) { }
+    if (!mFd)
+    {
+        // Hereafter SSL_LOG_WRN_CLOSE_AND_THROW would do the socket close for
+        // us using mFd, but since the mFd creation didn't work we close sfd
+        // here directly
+        PST_SOCK_CLOSE(sfd);
+
+        SSL_LOG_WRN_CLOSE_AND_THROW("Could not create an em_event_new");
+    }
     #else
     mFd = sfd;
     #endif
 
     mSsl = SSL_new(mCtxt);
     if (!mSsl)
-        SSL_LOG_WRN_AND_THROW("could not SSL_new");
+        SSL_LOG_WRN_CLOSE_AND_THROW("Could not SSL_new");
 
     // Set the socket to be non blocking.
     int flags = PST_FCNTL(sfd, PST_F_GETFL, 0);
@@ -767,7 +798,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     #ifdef DEBUG
     #ifdef __linux__
       if (tcp_prot_num != SOL_TCP)
-          SSL_LOG_WRN_AND_THROW("tcp_prot_num != SOL_TCP");
+          SSL_LOG_WRN_CLOSE_AND_THROW("tcp_prot_num != SOL_TCP");
     #endif
     #endif
     #else
@@ -798,7 +829,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         PS_LOG_DEBUG_ARGS("Socket connect res = %d", connect_res);
         if (connect_res != -1)
         {
-            PS_LOG_WARNING("Expecting non-blocking connect for SSL");
+            SSL_LOG_WRN_AND_CLOSE("Expecting non-blocking connect for SSL");
             errno = EINVAL;
             continue;
         }
@@ -815,6 +846,10 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
             break;
         }
         last_sock_connect_errno = errno;
+        PS_LOG_DEBUG_ARGS("sock connect error, errno %d, "
+                          "sfd %d, ai_addrlen %d, ai_addr %p",
+                          errno, sfd, ai_addrlen, ai_addr);
+        SSL_CLOSE;
     }
     PS_LOG_DEBUG_ARGS("mConnecting = %d", mConnecting);
     if (!mConnecting)
@@ -863,6 +898,9 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
     SSL_set_connect_state(mSsl);
 
     checkSocket(false/*not forAppRead*/);
+
+    if (addrinfo_ptr)
+        ::freeaddrinfo(addrinfo_ptr);
 }
 
 // ---------------------------------------------------------------------------
@@ -876,7 +914,11 @@ SslAsync::~SslAsync()
     if (mCtxt)
         SSL_CTX_free(mCtxt);
     if (mFd != PS_FD_EMPTY)
+    {
+        PS_LOG_DEBUG_ARGS("Closing %" PIST_QUOTE(PS_FD_PRNTFCD),
+                          mFd);
         CLOSE_FD(mFd);
+    }
 }
 
 // ---------------------------------------------------------------------------
