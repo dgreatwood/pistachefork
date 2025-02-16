@@ -80,23 +80,6 @@ namespace Pistache::Http::Experimental {
         throw std::runtime_error(__MSG);                  \
     }
 
-#define SSL_LOG_WRN_AND_CLOSE(__MSG)                      \
-    {                                                     \
-        PS_LOG_WARNING(__MSG);                            \
-        auto current_fd = mFd;                            \
-        mFd = PS_FD_EMPTY;                                \
-        if (current_fd != PS_FD_EMPTY)                    \
-            CLOSE_FD(current_fd);                         \
-    }
-
-#define SSL_CLOSE                                         \
-    {                                                     \
-        auto current_fd = mFd;                            \
-        mFd = PS_FD_EMPTY;                                \
-        if (current_fd != PS_FD_EMPTY)                    \
-            CLOSE_FD(current_fd);                         \
-    }
-
 // ---------------------------------------------------------------------------
 
 static bool lOpenSslInited = false;
@@ -732,7 +715,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         _hostPort = 443;
 
     struct addrinfo hints = {};
-    hints.ai_family       = AF_UNSPEC;
+    hints.ai_family       = _domain;
     hints.ai_socktype     = SOCK_STREAM;
     hints.ai_protocol     = IPPROTO_TCP;
     std::string host_port_as_sstr(std::to_string(_hostPort));
@@ -829,7 +812,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         PS_LOG_DEBUG_ARGS("Socket connect res = %d", connect_res);
         if (connect_res != -1)
         {
-            SSL_LOG_WRN_AND_CLOSE("Expecting non-blocking connect for SSL");
+            PS_LOG_WARNING("Expecting non-blocking connect for SSL");
             errno = EINVAL;
             continue;
         }
@@ -849,7 +832,6 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
         PS_LOG_DEBUG_ARGS("sock connect error, errno %d, "
                           "sfd %d, ai_addrlen %d, ai_addr %p",
                           errno, sfd, ai_addrlen, ai_addr);
-        SSL_CLOSE;
     }
     PS_LOG_DEBUG_ARGS("mConnecting = %d", mConnecting);
     if (!mConnecting)
