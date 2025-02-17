@@ -11,9 +11,11 @@ on:
   push:
     branches:
     - master
+    - sslclientsub4
   pull_request:
     branches:
     - master
+    - sslclientsub4
 
 defaults:
   run:
@@ -340,9 +342,20 @@ jobs:
 
         cd "$savedpwd"
 
-        meson test --no-rebuild -C build --verbose
-        # Use the following to run just a single test (e.g. http_server_test)
-        #   build/tests/run_http_server_test
+        $psre_path = "HKCU:\Software\pistacheio\pistache"
+        Set-ItemProperty -Path $psre_path -Name "psLogToStdoutAsWell" -Value 1
+
+        # meson test --no-rebuild -C build --verbose # !!!!!!!!!
+
+        build/tests/run_https_client_test >build/logwin.txt
+
+        if (! ($?)) {
+          Write-Warning "run_https_client_test.exe failure"
+
+          cat build/logwin.txt
+
+          throw "run_https_client_test.exe failure"
+        }
 
     - name: Install
       env:
