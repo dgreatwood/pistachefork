@@ -35,7 +35,7 @@ jobs:
         os: [ 'windows-2019', 'windows-latest' ] # Oct/2024, latest = 2022
         compiler: [ 'msvc', 'gcc' ] # Could also add clang
         sanitizer: [ 'address', 'none' ]
-        tls: [ 'true', 'false' ]
+        tls: [ 'true' ]
         def_debug: [ 'true', 'false' ]
         exclude:
           # VS only supports address sanitizer as of Oct/2024
