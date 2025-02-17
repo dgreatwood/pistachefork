@@ -249,7 +249,9 @@ namespace Pistache::Http::Experimental
                 // _addr, even if addr_len is zero
                 if (_addr_len)
                 {
-                    if (addr_len > sizeof(addr))
+                    // Note - the "cast" here avoids a warning of mismatched
+                    // signedness in Windows
+                    if (addr_len > (static_cast<socklen_t>(sizeof(addr))))
                     {
                         PS_LOG_ERR_ARGS("addr_len %d bigger than %d",
                                         addr_len, sizeof(addr));
@@ -496,10 +498,14 @@ namespace Pistache::Http::Experimental
                 }
                 else if (errno == ECONNREFUSED)
                 {
+                    PS_LOG_DEBUG("Could not send, connection refused");
                     conn->handleError("Could not send, connection refused");
                 }
                 else
                 {
+                    PST_DBG_DECL_SE_ERR_P_EXTRA;
+                    PS_LOG_DEBUG_ARGS("Could not send request, errno %d %s",
+                                      errno, PST_STRERROR_R_ERRNO);
                     conn->handleError("Could not send request");
                 }
                 break;
@@ -786,6 +792,10 @@ namespace Pistache::Http::Experimental
         char* buffer = &(stack_buffer[0]);
         std::unique_ptr<char[]> buffer_uptr;
 
+#ifdef PISTACHE_USE_SSL
+        bool know_readable = true; // true only in first pass of "for" loop
+#endif // PISTACHE_USE_SSL
+
         for (;;)
         {
             Fd conn_fd = connection->fdDirectOrFromSsl();
@@ -796,12 +806,17 @@ namespace Pistache::Http::Experimental
 #ifdef PISTACHE_USE_SSL
             if (connection->isSsl())
                 bytes = connection->fdOrSslConn()->getSslConn()->sslRawRecv(
-                    buffer + totalBytes, max_buffer - totalBytes);
+                    buffer + totalBytes, max_buffer - totalBytes,
+                    know_readable);
             else
 #endif // PISTACHE_USE_SSL
                 bytes = PST_SOCK_RECV(
                     GET_ACTUAL_FD(conn_fd), buffer + totalBytes,
                     max_buffer - totalBytes, 0);
+
+#ifdef PISTACHE_USE_SSL
+            know_readable = false;
+#endif // PISTACHE_USE_SSL
 
             if (bytes == -1)
             {
@@ -836,6 +851,15 @@ namespace Pistache::Http::Experimental
                 {
                     connection->handleError("Remote closed connection");
                 }
+                else
+                {
+                    PS_LOG_DEBUG_ARGS("Passing %d totalBytes to "
+                                          "handleResponsePacket",
+                                          totalBytes);
+
+                    connection->handleResponsePacket(buffer, totalBytes);
+                }
+
                 connections.erase(conn_fd);
                 connection->closeFromRemoteClosedConnection();
                 break;
@@ -1191,6 +1215,8 @@ namespace Pistache::Http::Experimental
         }
         catch (const std::exception& ex)
         {
+            PS_LOG_DEBUG_ARGS("Parser exception, totalBytes %d, buffer %s",
+                              totalBytes, buffer);
             handleError(ex.what());
         }
     }

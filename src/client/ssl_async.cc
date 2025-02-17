@@ -45,6 +45,7 @@
 
 #include <pistache/emosandlibevdefs.h> // for _USE_LIBEVENT_LIKE_APPLE
 #include <pistache/ssl_async.h>
+#include <pistache/pist_quote.h>
 #include <pistache/pist_syslog.h>
 #include <pistache/pist_timelog.h>
 
@@ -119,7 +120,8 @@ PST_SSIZE_T SslAsync::sslAppSend(const void * _buffer, size_t _length)
     for(; loop_count < 256; loop_count++)
     {
         starting_size = mToWriteVec.size();
-        int check_socket_res = checkSocket(false/*not forAppRead*/);
+        int check_socket_res = checkSocket(false/*not forAppRead*/,
+                                           false/*not known to be readable*/);
         if (check_socket_res)
             return(-1); // errno already set by checkSocket
         if (!mToWriteVec.size())
@@ -202,7 +204,8 @@ SslAsync::ACTION SslAsync::ssl_connect()
 
 // ---------------------------------------------------------------------------
 
-PST_SSIZE_T SslAsync::sslAppRecv(void * _buffer, size_t _length)
+PST_SSIZE_T SslAsync::sslAppRecv(void * _buffer, size_t _length,
+                                 bool _knowReadable)
 {
     if (!_buffer || !_length)
     {
@@ -212,16 +215,19 @@ PST_SSIZE_T SslAsync::sslAppRecv(void * _buffer, size_t _length)
 
     std::lock_guard<std::mutex> grd(mSslAsyncMutex);
 
-    errno = EWOULDBLOCK;
-
-    checkSocket(true/*forAppRead*/);
     if (mReadFromVec.empty())
-    {
-        if (errno == ENODATA)
-            return(0);
-        if (errno == 0)
-            errno = EWOULDBLOCK;
-        return(-1);
+    { // Otherwise we already have bytes to pass
+        errno = EWOULDBLOCK;
+
+        checkSocket(true/*forAppRead*/, _knowReadable);
+        if (mReadFromVec.empty())
+        {
+            if (errno == ECONNRESET)
+                return(0);
+            if (errno == 0)
+                errno = EWOULDBLOCK;
+            return(-1);
+        }
     }
 
     PST_SSIZE_T bytes_received = std::min(_length, mReadFromVec.size());
@@ -259,7 +265,7 @@ SslAsync::ACTION SslAsync::ssl_read()
     }
 
     if (ssl_error == SSL_ERROR_ZERO_RETURN) {
-      PS_LOG_DEBUG("Peer closed the TLS/SSL connection for writing");
+      PS_LOG_DEBUG("Peer closed the TLS/SSL connection");
       // Can also happen if peer abruptly closed the connection and we have
       // SSL_OP_IGNORE_UNEXPECTED_EOF set
     } else {
@@ -882,7 +888,7 @@ SslAsync::SslAsync(const char * _hostName, unsigned int _hostPort,
 
     SSL_set_connect_state(mSsl);
 
-    checkSocket(false/*not forAppRead*/);
+    checkSocket(false/*not forAppRead*/, false/*not known to be readable*/);
 
     if (addrinfo_ptr)
         ::freeaddrinfo(addrinfo_ptr);
@@ -925,7 +931,7 @@ void toTimeval(Duration&& d, struct timeval & tv)
 // user data) the application would have no way of knowing that we have read
 // user data waiting and so may never call sslAppRecv to retrieve it
 // Returns -1 when errno has been set, 0 otherwise
-int SslAsync::checkSocket(bool _forAppRead)
+int SslAsync::checkSocket(bool _forAppRead, bool _knowReadable)
 {
     PS_TIMEDBG_START_ARGS("mConnecting %d, mDoVerification %s, "
                           "_forAppRead %s, "
@@ -952,6 +958,7 @@ int SslAsync::checkSocket(bool _forAppRead)
     // returns immediately whether we have a result yet or not.
 
     int res = 0;
+    errno = 0; // make completely sure we're not returning with a stale errno
 
     unsigned int loop_count = 0;
     for(; loop_count < MAX_LOOP_COUNT; loop_count++)
@@ -984,11 +991,42 @@ int SslAsync::checkSocket(bool _forAppRead)
                           std::chrono::duration_cast<std::chrono::milliseconds>
                           (wait_so_far).count());
 
-        bool assume_read_select = ((loop_count == 0) && _forAppRead &&
-                              (!mCallSslWriteForSslLib) && (!mConnecting));
-        // We don't need to call select when checkSocket called with forAppRead
-        // true, since caller must have seen a poll/select on the socket
-        // already in order to call us
+        bool assume_read_select = false;
+        if ((!mCallSslWriteForSslLib) && (!mConnecting))
+        {
+            assume_read_select = ((loop_count == 0) && _knowReadable);
+            // We don't need to call select when checkSocket called with
+            // _knowReadable true, since caller must have seen a poll/select on
+            // the socket already in order to call us
+
+            if ((!assume_read_select) && _forAppRead)
+            {
+                PS_LOG_DEBUG("Checking SSL_pending");
+                int ssl_pending_res = SSL_pending(mSsl);
+                PS_LOG_DEBUG_ARGS("SSL_pending_res %d", ssl_pending_res);
+
+                if (ssl_pending_res > 0)
+                {
+                    assume_read_select = true;
+
+                    // If SSL_pending() > 0, it means the SSL library is
+                    // holding received bytes that have not yet been passed to
+                    // us. In such a case, bytes can be read from SSL_read even
+                    // if there are no bytes pending to be read on the
+                    // _socket_.
+                    //
+                    // Side note: This is not necessarily the case if
+                    // SSL_has_pending is true. If SSL_pending() returns zero,
+                    // but SSL_has_pending is true, it means there are bytes
+                    // being held in the SSL library but too few to allow us to
+                    // read (e.g. a partial encryption block which cannot be
+                    // decrypted until additional bytes arrive) - in that case
+                    // we do want to do select, because only if there are
+                    // additional bytes pending on the _socket_ might we be
+                    // able to successfully do SSL_read.
+                }
+            }
+        }
 
         // rptr to avoid reading when not wanted (see earlier comment re: bool
         // _forAppRead)
@@ -1021,12 +1059,31 @@ int SslAsync::checkSocket(bool _forAppRead)
         // "should be set to the highest-numbered file descriptor in any of the
         // three sets, plus 1". In Windows, nfds is ignored.
 
-        PS_LOG_DEBUG_ARGS("%s select, timeout.tv_sec %d, tv_usec %d, "
-                          "mConnecting %s",
-                          assume_read_select ? "Not calling" : "Calling",
-                          static_cast<int>(timeout.tv_sec),
-                          static_cast<int>(timeout.tv_usec),
-                          mConnecting ? "true" : "false");
+        #ifdef _IS_WINDOWS
+        PS_LOG_DEBUG_ARGS(
+            "%s select, timeout.tv_sec %d, tv_usec %d, "
+            "mConnecting %s, read_fs %d, write_fs %d, except_fs %d",
+            assume_read_select ? "Not calling" : "Calling",
+            static_cast<int>(timeout.tv_sec),
+            static_cast<int>(timeout.tv_usec),
+            mConnecting ? "true" : "false",
+            read_fs_rptr ? (FD_ISSET(sfd, &read_fds) ? 1 : 0) : -1,
+            write_fs_rptr ? (FD_ISSET(sfd, &write_fds) ? 1 : 0) : -1,
+            except_fs_rptr ? (FD_ISSET(sfd, &except_fds) ? 1 : 0) : -1
+            );
+        #else
+        PS_LOG_DEBUG_ARGS(
+            "%s select, timeout.tv_sec %d, tv_usec %d, "
+            "mConnecting %s, read_fs %d, write_fs %d",
+            assume_read_select ? "Not calling" : "Calling",
+            static_cast<int>(timeout.tv_sec),
+            static_cast<int>(timeout.tv_usec),
+            mConnecting ? "true" : "false",
+            read_fs_rptr ? (FD_ISSET(sfd, &read_fds) ? 1 : 0) : -1,
+            write_fs_rptr ? (FD_ISSET(sfd, &write_fds) ? 1 : 0) : -1
+            );
+        #endif // of ifdef _IS_WINDOWS... else...
+
         select_res = assume_read_select ? 1 :
             PST_SOCK_SELECT(static_cast<int>(sfd) + 1,
                             read_fs_rptr, write_fs_rptr,
@@ -1104,6 +1161,8 @@ int SslAsync::checkSocket(bool _forAppRead)
                     if (action == CONTINUE) {
                         continue;
                     } else if (action == BREAK) {
+                        errno = ECONNREFUSED;
+                        res = -1;
                         break;
                     }
                 } else {
