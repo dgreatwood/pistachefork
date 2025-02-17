@@ -347,7 +347,8 @@ jobs:
 
         # meson test --no-rebuild -C build --verbose # !!!!!!!!!
 
-        build/tests/run_https_client_test >build/logwin.txt
+        cd "build\tests";
+        .\run_https_client_test >build/logwin.txt
 
         if (! ($?)) {
           Write-Warning "run_https_client_test.exe failure"
