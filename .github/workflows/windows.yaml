@@ -342,7 +342,7 @@ jobs:
 
         cd "$savedpwd"
 
-        $psre_path = "HKCU:\Software\pistacheio\pistache"
+        $psre_path = "HKCU:\Software\pistacheio\pistache";
         Set-ItemProperty -Path $psre_path -Name "psLogToStdoutAsWell" -Value 1
 
         # meson test --no-rebuild -C build --verbose # !!!!!!!!!
