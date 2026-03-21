@@ -8,11 +8,9 @@ on:
   push:
     branches:
     - master
-    - lcovignores
   pull_request:
     branches:
     - master
-    - lcovignores
 
 defaults:
   run:
@@ -22,15 +20,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# !!!!!! Put back
-#         os: [ 'debian:stable', 'debian:testing', 'registry.access.redhat.com/ubi8/ubi-minimal', 'registry.access.redhat.com/ubi9/ubi-minimal' ]
-
 jobs:
   linux:
     strategy:
       fail-fast: false
       matrix:
-        os: [ 'debian:stable' ]
+        os: [ 'debian:stable', 'debian:testing', 'registry.access.redhat.com/ubi8/ubi-minimal', 'registry.access.redhat.com/ubi9/ubi-minimal' ]
         compiler: [ 'gcc', 'clang' ]
         sanitizer: [ 'address', 'undefined', 'none' ] # ThreadSanitizer reports errors
         tls: [ 'true', 'false' ]
@@ -114,11 +109,11 @@ jobs:
       run: meson test -C build --verbose
 
     - name: Coverage
-      if: ${{ matrix.os == 'debian:stable' }}
+      if: ${{ matrix.os == 'debian:testing' }}
       run: |
         mkdir -p $HOME/.local/bin
         if [ "${{ matrix.compiler }}" = 'clang' ]; then printf 'llvm-cov gcov "$@"' > $HOME/.local/bin/cov.sh; else printf 'gcov "$@"' > $HOME/.local/bin/cov.sh; fi && chmod +x $HOME/.local/bin/cov.sh
-        lcov --ignore-errors inconsistent,inconsistent --ignore-errors source --ignore-errors mismatch --ignore-errors negative --rc lcov_branch_coverage=1 --rc derive_function_end_line=0 --ignore-errors unsupported --ignore-errors format --ignore-errors unused,unused --rc check_data_consistency=0 --capture --output-file coverage.info --directory . --gcov-tool $HOME/.local/bin/cov.sh --exclude '/usr/*' --exclude "${HOME}"'/.cache/*' --exclude '*/tests/*' --exclude '*/subprojects/*'
+        lcov --capture --output-file coverage.info --directory . --gcov-tool $HOME/.local/bin/cov.sh --exclude '/usr/*' --exclude "${HOME}"'/.cache/*' --exclude '*/tests/*' --exclude '*/subprojects/*'
         lcov --list coverage.info
         curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import
         curl --silent --remote-name https://uploader.codecov.io/latest/linux/codecov
