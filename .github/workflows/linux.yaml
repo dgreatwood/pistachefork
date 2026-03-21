@@ -8,9 +8,11 @@ on:
   push:
     branches:
     - master
+    - lcovignores
   pull_request:
     branches:
     - master
+    - lcovignores
 
 defaults:
   run:
