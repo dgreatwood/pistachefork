@@ -1,0 +1,87 @@
+# SPDX-FileCopyrightText: 2026 Duncan Greatwood
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Uses: https://github.com/marketplace/actions/openbsd-vm
+
+name: openbsd
+
+on:
+  push:
+    branches:
+    - master
+    - otherBSDworkflow
+  pull_request:
+    branches:
+    - master
+
+defaults:
+  run:
+    shell: sh
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+#        osver: [ '', '7.3' ]
+#        compiler: [ 'clang' ]
+#        arch: [ 'x86_64', 'aarch64' ]
+#        sanitizer: [ 'address', 'undefined', 'none' ]
+#        tls: [ 'true', 'false' ]
+#        def_debug: [ 'true', 'false' ]
+
+jobs:
+  openbsd:
+    strategy:
+      fail-fast: false
+      matrix:
+        osver: [ '7.3' ]
+        compiler: [ 'clang' ]
+        arch: [ 'x86_64' ]
+        sanitizer: [ 'none' ]
+        tls: [ 'true' ]
+        def_debug: [ 'true' ]
+
+
+    runs-on: ubuntu-latest
+    name: A job to test in OpenBSD
+    env:
+        CC: ${{ matrix.compiler }}
+
+    steps:
+    # The closest analog to the install list we use in linux.yaml
+    # would be something like:
+    # pkg install -y $compiler git meson pkgconf cmake brotli brotli zstd rapidjson libevent ca_root_nss curl gnupg doxygen googletest openssl
+    # However, if we do that we get weird seg faults and aborts during
+    # testing, probably because we are using multiple incompatible
+    # versions of one or more library (e.g. incompatible versions of
+    # openssl between googletest and libcurl). To avoid those sort of
+    # problems, we install a minimum list of packages as dependencies.
+    - uses: actions/checkout@v6
+    - name: Test OpenBSD
+      id: test
+      uses: vmactions/openbsd-vm@v1
+      with:
+        arch: ${{ matrix.arch }}
+        envs: 'CC'
+        usesh: true
+        prepare: |
+
+
+        run: |
+          echo "Install Dependencies"
+          if [ ${{ matrix.compiler }} = gcc ]; then compiler=lang/gcc; else compiler=""; fi
+          pkg bootstrap
+          pkg install -y $compiler curl meson pkgconf rapidjson libevent
+          echo "Configure Meson"
+          if [ ${{ matrix.compiler }} = gcc ]; then CXX=g++; else CXX=clang++ CXX_LD=ld; fi
+          export CXX CXX_LD
+          meson setup build \
+          -DPISTACHE_BUILD_TESTS=true -DPISTACHE_DEBUG=${{ matrix.def_debug }} -DPISTACHE_USE_SSL=${{ matrix.tls }} -DPISTACHE_USE_CONTENT_ENCODING_DEFLATE=true -DPISTACHE_USE_CONTENT_ENCODING_BROTLI=true -DPISTACHE_USE_CONTENT_ENCODING_ZSTD=true \
+            --buildtype=debug -Db_coverage=true -Db_sanitize=${{ matrix.sanitizer }} -Db_lundef=false \
+            || (cat build/meson-logs/meson-log.txt ; false)
+           echo "Build"
+           ninja -C build
+           echo "Test"
+           meson test -C build --verbose
+    # Note: The "run" command is what runs inside OpenBSD
