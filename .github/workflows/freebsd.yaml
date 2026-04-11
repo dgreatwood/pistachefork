@@ -30,6 +30,7 @@ jobs:
       matrix:
         osver: [ '', '13.3' ]
         compiler: [ 'clang' ]
+        arch: [ 'x86_64', 'aarch64' ]
         sanitizer: [ 'address', 'undefined', 'none' ]
         tls: [ 'true', 'false' ]
         def_debug: [ 'true', 'false' ]
@@ -54,6 +55,7 @@ jobs:
       id: test
       uses: vmactions/freebsd-vm@v1
       with:
+        arch: ${{ matrix.arch }}
         envs: 'CC'
         usesh: true
         prepare: |
