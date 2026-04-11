@@ -60,6 +60,7 @@ jobs:
 
 
         run: |
+          freebsd-version
           echo "Install Dependencies"
           if [ ${{ matrix.compiler }} = gcc ]; then compiler=lang/gcc; else compiler=""; fi
           pkg bootstrap
