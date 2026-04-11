@@ -49,14 +49,16 @@ jobs:
         CC: ${{ matrix.compiler }}
 
     steps:
-    # The closest analog to the install list we use in linux.yaml
-    # would be something like:
+    # For FreeBSD, \tThe closest analog to the install list we use in
+    # linux.yaml would be something like:
     # pkg install -y $compiler git meson pkgconf cmake brotli brotli zstd rapidjson libevent ca_root_nss curl gnupg doxygen googletest openssl
     # However, if we do that we get weird seg faults and aborts during
     # testing, probably because we are using multiple incompatible
     # versions of one or more library (e.g. incompatible versions of
     # openssl between googletest and libcurl). To avoid those sort of
     # problems, we install a minimum list of packages as dependencies.
+    #
+    # For OpenBSD, we minimize the package list similarly to FreeBSD
     - uses: actions/checkout@v6
     - name: Test OpenBSD
       id: test
@@ -72,7 +74,7 @@ jobs:
           echo "Install Dependencies"
           if [ ${{ matrix.compiler }} = gcc ]; then compiler=lang/gcc; else compiler=""; fi
           pkg bootstrap
-          pkg install -y $compiler curl meson pkgconf rapidjson libevent
+          doas pkg_add -y $compiler curl meson pkgconf rapidjson libevent
           echo "Configure Meson"
           if [ ${{ matrix.compiler }} = gcc ]; then CXX=g++; else CXX=clang++ CXX_LD=ld; fi
           export CXX CXX_LD
