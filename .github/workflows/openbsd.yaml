@@ -74,7 +74,7 @@ jobs:
           echo "Install Dependencies"
           if [ ${{ matrix.compiler }} = gcc ]; then compiler=lang/gcc; else compiler=""; fi
           pkg bootstrap
-          doas pkg_add -y $compiler curl meson pkgconf rapidjson libevent
+          pkg_add -y $compiler curl meson pkgconf rapidjson libevent
           echo "Configure Meson"
           if [ ${{ matrix.compiler }} = gcc ]; then CXX=g++; else CXX=clang++ CXX_LD=ld; fi
           export CXX CXX_LD
