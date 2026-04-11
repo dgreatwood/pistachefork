@@ -28,17 +28,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-#        os: [ 'debian:stable' ]
-#        compiler: [ 'gcc', 'clang' ]
-#        sanitizer: [ 'address', 'undefined', 'none' ]
-#        tls: [ 'true', 'false' ]
-#        def_debug: [ 'true', 'false' ]
-
-        osver: [ '13.3' ]
+        osver: [ '', '13.3' ]
         compiler: [ 'clang' ]
-        sanitizer: [ 'none' ]
-        tls: [ 'true' ]
-        def_debug: [ 'true' ]
+        sanitizer: [ 'address', 'undefined', 'none' ]
+        tls: [ 'true', 'false' ]
+        def_debug: [ 'true', 'false' ]
 
 
     runs-on: ubuntu-latest
