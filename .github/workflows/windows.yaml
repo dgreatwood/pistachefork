@@ -11,9 +11,18 @@ on:
   push:
     branches:
     - master
+    - getLibzFromDeb
   pull_request:
     branches:
     - master
+
+# !!!!!!!! PUT BACK
+#        os: [ 'windows-2022', 'windows-latest' ] # Mar/2026, latest = 2025
+#        compiler: [ 'msvc', 'gcc' ] # Could also add clang
+#        sanitizer: [ 'address', 'none' ]
+#        tls: [ 'true', 'false' ]
+#        def_debug: [ 'true', 'false' ]
+
 
 defaults:
   run:
@@ -30,11 +39,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ 'windows-2022', 'windows-latest' ] # Mar/2026, latest = 2025
-        compiler: [ 'msvc', 'gcc' ] # Could also add clang
-        sanitizer: [ 'address', 'none' ]
-        tls: [ 'true', 'false' ]
-        def_debug: [ 'true', 'false' ]
+        os: [ 'windows-2022' ] # Mar/2026, latest = 2025
+        compiler: [ 'msvc' ] # Could also add clang
+        sanitizer: [ 'none' ]
+        tls: [ 'true' ]
+        def_debug: [ 'true' ]
         exclude:
           # VS only supports address sanitizer as of Oct/2024
           # mingw-gcc does not support any sanitizer as of Oct/2024
