@@ -97,8 +97,10 @@ cd ~
                       ".windows.x64.bin.zip")
 
                     try {
-                        Invoke-WebRequest -Uri $dox_target `
-                          -OutFile doxygen.bin.zip -UserAgent "Mozilla/5.0"
+                        # !!!!!!!!
+                        # Invoke-WebRequest -Uri $dox_target `
+                        #  -OutFile doxygen.bin.zip -UserAgent "Mozilla/5.0"
+                        Invoke-WebRequest -Uri "https://downloads.sourceforge.net/project/doxygen/rel-1.17.0/doxygen-1.17.0.windows.x64.bin.zip" -OutFile "doxygen.bin.zip" -UserAgent "Mozilla/5.0"
                         if ($?) {
                             Write-Host "Fetching $dox_target returned success"
 
