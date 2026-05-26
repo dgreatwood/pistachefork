@@ -98,14 +98,14 @@ cd ~
 
                     try {
                         Invoke-WebRequest -Uri $dox_target `
-                          -OutFile doxygen.bin.zip
+                          -OutFile doxygen.bin.zip -UserAgent "Mozilla/5.0"
                         if ($?) {
                             Write-Host "Fetching $dox_target returned success"
 
                             Expand-Archive doxygen.bin.zip `
                               -DestinationPath doxygen.bin
                             if ($?) {
-                                Write-Host "Unzip doxygen  returned success"
+                                Write-Host "Unzip doxygen returned success"
                                 $got_dox_ok = true
                             }
                             else {
