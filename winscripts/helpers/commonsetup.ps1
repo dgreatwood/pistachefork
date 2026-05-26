@@ -11,7 +11,7 @@
 $savedpwd = $pwd
 
 cd ~
-            // !!!!!!!! Moved here
+            # !!!!!!!! Moved here
             try {
                 cd ~
                 Write-Host "doxygen: Fetching version number of latest release"
@@ -1152,7 +1152,7 @@ if (! (Get-Command doxygen -errorAction SilentlyContinue)) {
         }
         else
         {
-            // !!!!!!!! Put back here
+            # !!!!!!!! Put back here
         }
     }
 }
