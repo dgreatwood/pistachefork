@@ -11,6 +11,120 @@
 $savedpwd = $pwd
 
 cd ~
+            // !!!!!!!! Moved here
+            try {
+                cd ~
+                Write-Host "doxygen: Fetching version number of latest release"
+
+                $dox_gh_latest_url = `
+                  "https://github.com/doxygen/doxygen/releases/latest"
+                $dox_gh_latest_response = Invoke-WebRequest `
+                  -Uri $dox_gh_latest_url -UseBasicParsing
+                # Note on "-UseBasicParsing". Without that option,
+                # Invoke-WebRequest hangs in Windows Server 2019 (PS
+                # v5.1.17763.2931/Desktop) for that URI, apparently a known
+                # PowerShell bug. See:
+                # https://stackoverflow.com/questions/56187543/invoke-webrequest-freezes-hangs
+                # https://github.com/PowerShell/PowerShell/issues/2867
+                #
+                # Additionally, for Windows-2022, Invoke-WebRequest
+                # throws an error here if -UseBasicParsing is not
+                # specified.
+
+                $doxygen_gh_latest = $dox_gh_latest_response.BaseResponse.ResponseUri.AbsoluteUri
+                Write-Host "GitHub doxygen latest release: $doxygen_gh_latest"
+                # We expect a URI of from:
+                #  https://github.com/
+                #                 doxygen/doxygen/releases/tag/Release_1_17_0
+
+                $ver_with_ubars = ($doxygen_gh_latest -split 'Release_')[1]
+                $ver_with_dots = $ver_with_ubars.Replace('_', '.')
+                $dox_target = -join("https://www.doxygen.nl/files/doxygen-", `
+                  $ver_with_dots, ".windows.x64.bin.zip")
+                # For instance, of form:
+                #   https://www.doxygen.nl/files/
+                #                           doxygen-1.17.0.windows.x64.bin.zip
+
+                Write-Host "doxygen: Fetching $dox_target"
+                Invoke-WebRequest -Uri $dox_target -OutFile doxygen.bin.zip
+            }
+            catch {
+            }
+            $got_dox_ok = false
+            if (Test-Path -Path "doxygen.bin.zip") {
+                $got_dox_ok = true
+                 try {
+                     # Don't need admin privilege here, expanding to user's
+                     # own folders
+                     Expand-Archive doxygen.bin.zip `
+                       -DestinationPath doxygen.bin
+                 }
+                catch {
+                    $got_dox_ok = false
+                }
+            }
+            if (! $got_dox_ok) {
+                try {
+                    Write-Host "Failed to download latest doxygen.bin.zip"
+
+                    Write-Host "Fetching $dox_target"
+
+                    # Occasionally (1 time in 100?) Expand-Archive
+                    # will fail, with an error like:
+                    #   New-Object : Exception calling ".ctor" with "3"...
+                    # Apparently, this happens when the downloaded zip
+                    # file was corrupt. We try downloading it again;
+                    # and apparently setting a different UserAgent may
+                    # help.
+                    Invoke-WebRequest -Uri $dox_target `
+                      -OutFile doxygen.bin.zip -UserAgent "NativeHost"
+
+                    Expand-Archive doxygen.bin.zip `
+                      -DestinationPath doxygen.bin
+
+                    $got_dox_ok = true
+                }
+                catch {
+                    # Since we failed getting doxygen from
+                    # www.doxygen.nl, let's try from GitHub
+                    # URL of form:
+                    #   https://github.com/doxygen/doxygen/releases/download/
+                    #        Release_1_17_0/doxygen-1.17.0.windows.x64.bin.zip
+
+                    $dox_target = -join( `
+                      "https://github.com/doxygen/doxygen/releases/download/Release_", `
+                      $ver_with_ubars, "/doxygen-", $ver_with_dots, `
+                      ".windows.x64.bin.zip")
+
+                    try {
+                        Invoke-WebRequest -Uri $dox_target `
+                          -OutFile doxygen.bin.zip
+                        if ($?) {
+                            Write-Host "Fetching $dox_target returned success"
+
+                            Expand-Archive doxygen.bin.zip `
+                              -DestinationPath doxygen.bin
+                            if ($?) {
+                                Write-Host "Unzip doxygen  returned success"
+                                $got_dox_ok = true
+                            }
+                            else {
+                                Write-Host "Unzip doxygen returned failed"
+                            }
+                        }
+                        else {
+                            Write-Host "Fetching $dox_target returned failed"
+                        }
+                    }
+                    catch {
+                    }
+                }
+            }
+            if (! $got_dox_ok) {
+                throw "Failed to get and expand $dox_target for doxygen"
+            }
+            $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
+
 
 # Note regarding throw. Just like a regular error, a throw sets
 # $Error[0]. Of course, throw additional exits the script provided it
@@ -911,7 +1025,7 @@ if ((! (Get-ChildItem -Path "$env:ProgramFiles\zlib*" `
       if (! (pstRunScriptWithAdminRightsIfNotAlready)) {
           # Download of zlib seems to fail occasionally
           $dnld_zlib_ct = 0
-          $dnld_zlib_ct_max = 10
+          $dnld_zlib_ct_max = 3
           Do {
               $dnld_zlib_ct++
               if ($dnld_zlib_ct -gt 1) { Start-Sleep -Seconds 60 }
@@ -1038,105 +1152,7 @@ if (! (Get-Command doxygen -errorAction SilentlyContinue)) {
         }
         else
         {
-            try {
-                cd ~
-                Write-Host "doxygen: Fetching version number of latest release"
-
-                $dox_gh_latest_url = `
-                  "https://github.com/doxygen/doxygen/releases/latest"
-                $dox_gh_latest_response = Invoke-WebRequest `
-                  -Uri $dox_gh_latest_url -UseBasicParsing
-                # Note on "-UseBasicParsing". Without that option,
-                # Invoke-WebRequest hangs in Windows Server 2019 (PS
-                # v5.1.17763.2931/Desktop) for that URI, apparently a known
-                # PowerShell bug. See:
-                # https://stackoverflow.com/questions/56187543/invoke-webrequest-freezes-hangs
-                # https://github.com/PowerShell/PowerShell/issues/2867
-                #
-                # Additionally, for Windows-2022, Invoke-WebRequest
-                # throws an error here if -UseBasicParsing is not
-                # specified.
-
-                $doxygen_gh_latest = $dox_gh_latest_response.BaseResponse.ResponseUri.AbsoluteUri
-                Write-Host "GitHub doxygen latest release: $doxygen_gh_latest"
-                # We expect a URI of from:
-                #  https://github.com/
-                #                 doxygen/doxygen/releases/tag/Release_1_17_0
-
-                $ver_with_ubars = ($doxygen_gh_latest -split 'Release_')[1]
-                $ver_with_dots = $ver_with_ubars.Replace('_', '.')
-                $dox_target = -join("https://www.doxygen.nl/files/doxygen-", `
-                  $ver_with_dots, ".windows.x64.bin.zip")
-                # For instance, of form:
-                #   https://www.doxygen.nl/files/
-                #                           doxygen-1.17.0.windows.x64.bin.zip
-
-                Write-Host "doxygen: Fetching $dox_target"
-                Invoke-WebRequest -Uri $dox_target -OutFile doxygen.bin.zip
-            }
-            catch {
-            }
-            $got_dox_ok = false
-            if (Test-Path -Path "doxygen.bin.zip") {
-                $got_dox_ok = true
-                 try {
-                     # Don't need admin privilege here, expanding to user's
-                     # own folders
-                     Expand-Archive doxygen.bin.zip `
-                       -DestinationPath doxygen.bin
-                 }
-                catch {
-                    $got_dox_ok = false
-                }
-            }
-            if (! $got_dox_ok) {
-                try {
-                    Write-Host "Failed to download latest doxygen.bin.zip"
-
-                    Write-Host "Fetching $dox_target"
-
-                    # Occasionally (1 time in 100?) Expand-Archive
-                    # will fail, with an error like:
-                    #   New-Object : Exception calling ".ctor" with "3"...
-                    # Apparently, this happens when the downloaded zip
-                    # file was corrupt. We try downloading it again;
-                    # and apparently setting a different UserAgent may
-                    # help.
-                    Invoke-WebRequest -Uri $dox_target `
-                      -OutFile doxygen.bin.zip -UserAgent "NativeHost"
-
-                    Expand-Archive doxygen.bin.zip `
-                      -DestinationPath doxygen.bin
-
-                    $got_dox_ok = true
-                }
-                catch {
-                    # Since we failed getting doxygen from
-                    # www.doxygen.nl, let's try from GitHub
-                    # URL of form:
-                    #   https://github.com/doxygen/doxygen/releases/download/
-                    #        Release_1_17_0/doxygen-1.17.0.windows.x64.bin.zip
-
-                    $dox_target = -join( `
-                      "https://github.com/doxygen/doxygen/releases/download/Release_", `
-                      $ver_with_ubars, "/doxygen-", $ver_with_dots, `
-                      ".windows.x64.bin.zip")
-
-                    try {
-                        Invoke-WebRequest -Uri $dox_target `
-                          -OutFile doxygen.bin.zip
-                        Expand-Archive doxygen.bin.zip `
-                          -DestinationPath doxygen.bin
-                        $got_dox_ok = true
-                    }
-                    catch {
-                    }
-                }
-            }
-            if (! $got_dox_ok) {
-                throw "Failed to get and expand $dox_target for doxygen"
-            }
-            $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
+            // !!!!!!!! Put back here
         }
     }
 }
