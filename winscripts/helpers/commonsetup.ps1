@@ -98,7 +98,7 @@ cd ~
                       ".windows.x64.bin.zip")
 
                     try {
-                        Invoke-WebRequest -Uri $dox_target -UseBasicParsing`
+                        Invoke-WebRequest -Uri $dox_target -UseBasicParsing `
                           -OutFile doxygen.bin.zip `
                           -UserAgent "Mozilla/5.0"
 
