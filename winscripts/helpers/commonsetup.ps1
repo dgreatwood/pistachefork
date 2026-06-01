@@ -39,6 +39,7 @@ cd ~
 
                 $ver_with_ubars = ($doxygen_gh_latest -split 'Release_')[1]
                 $ver_with_dots = $ver_with_ubars.Replace('_', '.')
+
                 $dox_target = -join("https://www.doxygen.nl/files/doxygen-", `
                   $ver_with_dots, ".windows.x64.bin.zip")
                 # For instance, of form:
@@ -49,12 +50,19 @@ cd ~
                 Invoke-WebRequest -Uri $dox_target `
                   -OutFile doxygen.bin.zip `
                   -UserAgent "Mozilla/5.0"
+
+                if ($?) {
+                    Write-Host "Fetching $dox_target returned success"
+                }
+                else {
+                    Write-Host "Fetching $dox_target returned failed"
+                }
             }
             catch {
             }
-            $got_dox_ok = false
+            $got_dox_ok = $FALSE
             if (Test-Path -Path "doxygen.bin.zip") {
-                $got_dox_ok = true
+                $got_dox_ok = $TRUE
                  try {
                      # Don't need admin privilege here, expanding to user's
                      # own folders
@@ -62,7 +70,7 @@ cd ~
                        -DestinationPath doxygen.bin
                  }
                 catch {
-                    $got_dox_ok = false
+                    $got_dox_ok = $FALSE
                 }
             }
             if (! $got_dox_ok) {
@@ -84,7 +92,7 @@ cd ~
                     Expand-Archive doxygen.bin.zip `
                       -DestinationPath doxygen.bin
 
-                    $got_dox_ok = true
+                    $got_dox_ok = $TRUE
                 }
                 catch {
                     # Since we failed getting doxygen from
@@ -111,7 +119,7 @@ cd ~
                               -DestinationPath doxygen.bin
                             if ($?) {
                                 Write-Host "Unzip doxygen returned success"
-                                $got_dox_ok = true
+                                $got_dox_ok = $TRUE
                             }
                             else {
                                 Write-Host "Unzip doxygen returned failed"
