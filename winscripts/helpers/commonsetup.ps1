@@ -46,7 +46,7 @@ cd ~
                 #                           doxygen-1.17.0.windows.x64.bin.zip
 
                 Write-Host "doxygen: Fetching $dox_target"
-                Invoke-WebRequest -Uri $dox_target -UseBasicParsing `
+                Invoke-WebRequest -Uri $dox_target `
                   -OutFile doxygen.bin.zip `
                   -UserAgent "Mozilla/5.0"
             }
