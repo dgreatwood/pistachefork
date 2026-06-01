@@ -46,7 +46,9 @@ cd ~
                 #                           doxygen-1.17.0.windows.x64.bin.zip
 
                 Write-Host "doxygen: Fetching $dox_target"
-                Invoke-WebRequest -Uri $dox_target -OutFile doxygen.bin.zip
+                Invoke-WebRequest -Uri $dox_target -UseBasicParsing `
+                  -OutFile doxygen.bin.zip `
+                  -UserAgent "Mozilla/5.0"
             }
             catch {
             }
@@ -76,7 +78,7 @@ cd ~
                     # file was corrupt. We try downloading it again;
                     # and apparently setting a different UserAgent may
                     # help.
-                    Invoke-WebRequest -Uri $dox_target `
+                    Invoke-WebRequest -Uri $dox_target -UseBasicParsing `
                       -OutFile doxygen.bin.zip -UserAgent "NativeHost"
 
                     Expand-Archive doxygen.bin.zip `
