@@ -10,6 +10,7 @@ on:
   push:
     branches:
     - master
+    - openbsdAarch64Debug
   pull_request:
     branches:
     - master
@@ -29,7 +30,7 @@ jobs:
       matrix:
         osver: [ '', '7.3' ]
         compiler: [ 'clang' ]
-        arch: [ 'x86_64', 'aarch64' ]
+        arch: [ 'aarch64' ]
         sanitizer: [ 'none' ]
         tls: [ 'true', 'false' ]
         def_debug: [ 'true', 'false' ]
@@ -70,6 +71,7 @@ jobs:
         arch: ${{ matrix.arch }}
         envs: 'CC'
         usesh: true
+        debug: true
         prepare: |
 
 
