@@ -24,7 +24,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-
 jobs:
   macos:
     name: macOS with Libevent
@@ -73,7 +72,12 @@ jobs:
         fi
         # brew install openssl # Already installed in base image
         brew install rapidjson
-        # brew install libevent # Already installed in base image
+        # libevent is already installed in most base github images,
+        # but, as of May 2026, *not* in the macos-26-intel image
+        if ! brew list --formula | grep -q "^libevent$"; then
+            echo "Installing libevent"
+            brew install libevent
+        fi
         brew install howard-hinnant-date
         if ! brew list brotli &>/dev/null; then brew install brotli; fi
         if ! brew list zstd &>/dev/null; then brew install zstd; fi

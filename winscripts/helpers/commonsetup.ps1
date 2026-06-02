@@ -911,7 +911,7 @@ if ((! (Get-ChildItem -Path "$env:ProgramFiles\zlib*" `
       if (! (pstRunScriptWithAdminRightsIfNotAlready)) {
           # Download of zlib seems to fail occasionally
           $dnld_zlib_ct = 0
-          $dnld_zlib_ct_max = 16
+          $dnld_zlib_ct_max = 3
           Do {
               $dnld_zlib_ct++
               if ($dnld_zlib_ct -gt 1) { Start-Sleep -Seconds 60 }
@@ -923,9 +923,61 @@ if ((! (Get-ChildItem -Path "$env:ProgramFiles\zlib*" `
               tar -xvzf .\zlib.tar.gz
           } While ((! ($?)) -and ($dnld_zlib_ct -le $dnld_zlib_ct_max))
           if ($dnld_zlib_ct -gt $dnld_zlib_ct_max) {
-              Write-Warning `
-                "untar of zlib failed after download $dnld_zlib_ct times"
-              throw "untar of downloaded zlib failed"
+              Write-Host `
+                "zlib download+untar via zlib.net failed $dnld_zlib_ct times"
+              Write-Host "Trying from debian.org instead"
+
+              # Fetch the HTML content of the Debian mirror directory
+              $debzlib_url = "https://ftp.debian.org/debian/pool/main/z/zlib/"
+              $debzlib_html = Invoke-RestMethod -Uri $debzlib_url
+
+              # Use a Regular Expression to find all the .orig.tar.gz filenames
+              $debzlib_pattern = `
+                'zlib_[0-9.]+(?:\.dfsg)?\+really[0-9.]+\.orig\.tar\.gz'
+              $dzl_matches = [regex]::matches($debzlib_html,$debzlib_pattern) `
+                | Select-Object -ExpandProperty Value -Unique
+
+              # Sort the filenames by version and pick the newest one
+              $dzLlatestFile = $dzl_matches | `
+                Sort-Object { [version]($_ -replace `
+                '.*?really([0-9.]+)\.orig.*','$1') } | Select-Object -Last 1
+
+              # Download the latest file to the current directory
+              $downloadUrl = "$debzlib_url$dzLlatestFile"
+              Invoke-WebRequest -Uri $downloadUrl -OutFile zlib.tar.gz
+
+              tar -xvzf .\zlib.tar.gz
+              if (! ($?)) {
+                  Write-Host "zlib download+untar via debian.org failed"
+                  throw `
+                    "zlib download+untar via zlib.net and debian.org failed"
+              }
+
+              # Debian does not include the CMakeLists.txt in the
+              # "contrib" subdir (for what to me are obscure
+              # open-source licensing reasons). We must now create an
+              # empty CMakeLists.txt so that when cmake reaches the
+              # line "add_subdirectory(contrib)" it is able to keep
+              # going.
+              cd "zlib*" # Adjusts to whatever we downloaded, e.g. zlib-1.3.1
+              # Create empty CMakeLists.txt, or overwrite existing with empty
+              New-Item -ItemType File -Path "contrib\CMakeLists.txt" -Force
+
+              # Another thing debian strips is the zlib1.rc file,
+              # which contains DLL versioning information. We again
+              # create an empty one
+              New-Item -ItemType Directory -Path "win32" -Force
+              New-Item -ItemType File -Path "win32\zlib1.rc" -Force
+
+              # Yet another thing stripped are the rfc files in doc subdir
+              if (! (Test-Path -Path "doc\rfc1950.txt")) {
+                  New-Item -ItemType File -Path "doc\rfc1950.txt" -Force }
+              if (! (Test-Path -Path "doc\rfc1951.txt")) {
+                  New-Item -ItemType File -Path "doc\rfc1951.txt" -Force }
+              if (! (Test-Path -Path "doc\rfc1952.txt")) {
+                  New-Item -ItemType File -Path "doc\rfc1952.txt" -Force }
+
+              cd ..
           }
           if ($dnld_zlib_ct -gt 1) {
               Write-Host `
@@ -989,44 +1041,71 @@ if (! (Get-Command doxygen -errorAction SilentlyContinue)) {
             try {
                 cd ~
                 Write-Host "doxygen: Fetching version number of latest release"
-                $doxygen_latest_links = (Invoke-WebRequest -Uri "https://github.com/doxygen/doxygen/releases/latest" -UseBasicParsing).Links
+
+                $dox_gh_latest_url = `
+                  "https://github.com/doxygen/doxygen/releases/latest"
+                $dox_gh_latest_response = Invoke-WebRequest `
+                  -Uri $dox_gh_latest_url -UseBasicParsing
                 # Note on "-UseBasicParsing". Without that option,
                 # Invoke-WebRequest hangs in Windows Server 2019 (PS
                 # v5.1.17763.2931/Desktop) for that URI, apparently a known
                 # PowerShell bug. See:
                 # https://stackoverflow.com/questions/56187543/invoke-webrequest-freezes-hangs
                 # https://github.com/PowerShell/PowerShell/issues/2867
-                foreach ($itm in $doxygen_latest_links) {
-                    $ot = $itm.outerText
-                    if ($ot -like "Release_*") {
-                        $ot_ver_with_underbars = $ot.Substring(8)
-                        $ot_ver_with_dots = `
-                          $ot_ver_with_underbars -replace "_", "."
-                        $download_uri = `
-                          -join("https://www.doxygen.nl/files/doxygen-", `
-                          $ot_ver_with_dots.TrimEnd(), ".windows.x64.bin.zip")
-                        Write-Host "doxygen: Fetching $download_uri"
-                        Invoke-WebRequest -Uri $download_uri `
-                          -OutFile doxygen.bin.zip
-                        break
-                    }
+                #
+                # Additionally, for Windows-2022, Invoke-WebRequest
+                # throws an error here if -UseBasicParsing is not
+                # specified.
+
+                $doxygen_gh_latest = `
+                  $dox_gh_latest_response.BaseResponse.ResponseUri.AbsoluteUri
+                Write-Host "GitHub doxygen latest release: $doxygen_gh_latest"
+                # We expect a URI of from:
+                #  https://github.com/
+                #                 doxygen/doxygen/releases/tag/Release_1_17_0
+
+                $ver_with_ubars = ($doxygen_gh_latest -split 'Release_')[1]
+                $ver_with_dots = $ver_with_ubars.Replace('_', '.')
+
+                $dox_target = -join("https://www.doxygen.nl/files/doxygen-", `
+                  $ver_with_dots, ".windows.x64.bin.zip")
+                # For instance, of form:
+                #   https://www.doxygen.nl/files/
+                #                           doxygen-1.17.0.windows.x64.bin.zip
+
+                Write-Host "doxygen: Fetching $dox_target"
+                Invoke-WebRequest -Uri $dox_target `
+                  -OutFile doxygen.bin.zip `
+                  -UserAgent "Mozilla/5.0"
+
+                if ($?) {
+                    Write-Host "Fetching $dox_target returned success"
+                }
+                else {
+                    Write-Host "Fetching $dox_target returned failed"
                 }
             }
             catch {
             }
-            if (! (Test-Path -Path "doxygen.bin.zip")) {
-                Write-Host "Failed to download latest doxygen.bin.zip"
-                $download_uri = "https://www.doxygen.nl/files/doxygen-1.12.0.windows.x64.bin.zip"
-                Write-Host "Fetching $download_uri"
-                Invoke-WebRequest -Uri $download_uri -OutFile doxygen.bin.zip
+            $got_dox_ok = $FALSE
+            if (Test-Path -Path "doxygen.bin.zip") {
+                $got_dox_ok = $TRUE
+                 try {
+                     # Don't need admin privilege here, expanding to user's
+                     # own folders
+                     Expand-Archive doxygen.bin.zip `
+                       -DestinationPath doxygen.bin
+                 }
+                catch {
+                    $got_dox_ok = $FALSE
+                }
             }
-            try {
-                # Don't need admin privilege here, expanding to user's
-                # own fodlers
-                Expand-Archive doxygen.bin.zip -DestinationPath doxygen.bin
-            }
-            catch {
-                if ($download_uri) {
+            if (! $got_dox_ok) {
+                try {
+                    Write-Host "Failed to download latest doxygen.bin.zip"
+
+                    Write-Host "Fetching $dox_target"
+
                     # Occasionally (1 time in 100?) Expand-Archive
                     # will fail, with an error like:
                     #   New-Object : Exception calling ".ctor" with "3"...
@@ -1034,13 +1113,55 @@ if (! (Get-Command doxygen -errorAction SilentlyContinue)) {
                     # file was corrupt. We try downloading it again;
                     # and apparently setting a different UserAgent may
                     # help.
-                    Invoke-WebRequest -Uri $download_uri `
+                    Invoke-WebRequest -Uri $dox_target -UseBasicParsing `
                       -OutFile doxygen.bin.zip -UserAgent "NativeHost"
-                    Expand-Archive doxygen.bin.zip -DestinationPath doxygen.bin
+
+                    Expand-Archive doxygen.bin.zip `
+                      -DestinationPath doxygen.bin
+
+                    $got_dox_ok = $TRUE
                 }
-                else {
-                    throw "Unknown $download_uri for doxygen"
+                catch {
+                    # Since we failed getting doxygen from
+                    # www.doxygen.nl, let's try from GitHub
+                    # URL of form:
+                    #   https://github.com/doxygen/doxygen/releases/download/
+                    #        Release_1_17_0/doxygen-1.17.0.windows.x64.bin.zip
+
+                    $dox_target = -join( `
+                      "https://github.com/doxygen/doxygen/releases/download/Release_", `
+                      $ver_with_ubars, `
+                      "/doxygen-", $ver_with_dots, `
+                      ".windows.x64.bin.zip")
+
+                    try {
+                        Invoke-WebRequest -Uri $dox_target -UseBasicParsing `
+                          -OutFile doxygen.bin.zip `
+                          -UserAgent "Mozilla/5.0"
+
+                        if ($?) {
+                            Write-Host "Fetching $dox_target returned success"
+
+                            Expand-Archive doxygen.bin.zip `
+                              -DestinationPath doxygen.bin
+                            if ($?) {
+                                Write-Host "Unzip doxygen returned success"
+                                $got_dox_ok = $TRUE
+                            }
+                            else {
+                                Write-Host "Unzip doxygen returned failed"
+                            }
+                        }
+                        else {
+                            Write-Host "Fetching $dox_target returned failed"
+                        }
+                    }
+                    catch {
+                    }
                 }
+            }
+            if (! $got_dox_ok) {
+                throw "Failed to get and expand $dox_target for doxygen"
             }
             $env:Path="$env:Path;$env:USERPROFILE\doxygen.bin"
         }
