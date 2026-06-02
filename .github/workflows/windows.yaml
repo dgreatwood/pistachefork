@@ -11,8 +11,6 @@ on:
   push:
     branches:
     - master
-    - getLibzFromDeb
-    - getLibzFromDeb2
   pull_request:
     branches:
     - master
