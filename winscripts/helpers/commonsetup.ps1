@@ -1067,11 +1067,8 @@ if (! (Get-Command doxygen -errorAction SilentlyContinue)) {
                 $ver_with_ubars = ($doxygen_gh_latest -split 'Release_')[1]
                 $ver_with_dots = $ver_with_ubars.Replace('_', '.')
 
-                # !!!!!!!! PUT BACK
-                # $dox_target = -join("https://www.doxygen.nl/files/doxygen-", `
-                #  $ver_with_dots, ".windows.x64.bin.zip")
                 $dox_target = -join("https://www.doxygen.nl/files/doxygen-", `
-                  $ver_with_dots, ".windowsBAD.x64.bin.zip")
+                  $ver_with_dots, ".windows.x64.bin.zip")
                 # For instance, of form:
                 #   https://www.doxygen.nl/files/
                 #                           doxygen-1.17.0.windows.x64.bin.zip
